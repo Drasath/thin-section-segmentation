@@ -1,0 +1,4 @@
+logs/*
+*.tif, *.tiff
+__pycache__
+datasets/*
