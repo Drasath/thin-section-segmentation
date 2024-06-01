@@ -29,6 +29,11 @@ class Canvas(QWidget):
 
         self.update()
 
+    def paintEvent(self, event):
+        qp = QPainter(self)
+        rect = event.rect()
+        qp.drawImage(rect, self.image, rect)
+
     def undo(self):
         if self.revisions:
             self.image = self.revisions.pop()

@@ -9,9 +9,12 @@ from constants import *
 from model import AMG
 from model.segmentation import segment
 from view.canvas import Canvas
+from view.parameter_tab import ParameterTab
+from modifiers import modifiers
 
 # TODO - Refactor this mess. LH
 class MainWindow(QMainWindow):
+
     def __init__(self):
         super(MainWindow, self).__init__()
 
@@ -56,23 +59,32 @@ class MainWindow(QMainWindow):
         self.outliner = QListWidget()
         self.outliner.itemClicked.connect(self.selectRegion)
 
-        self.properties = QWidget()
         self.zoomview = QLabel("Zoom View")
+
+        self.segmentation_method = QWidget()
+        self.segmentation_method.setLayout(QVBoxLayout())
+        self.parameters = ParameterTab(self, modifiers[0])
+
+        combobox = QComboBox()
+
+        for modifier in modifiers:
+            combobox.addItem(modifier.name)
+
+        self.segmentation_method.layout().addWidget(combobox)
+        self.segmentation_method.layout().setAlignment(Qt.AlignTop)
+        combobox.currentIndexChanged.connect(lambda: self.parameters.setModifier(modifiers[combobox.currentIndex()]))
         
-        tabs.addTab(self.properties, "Properties")
+
+        tabs.addTab(self.parameters, "Properties")
         tabs.addTab(self.outliner, "Inspector")
-        
+        tabs.addTab(self.segmentation_method, "Segmentation Method")
+
+
         inspector.addWidget(self.zoomview)
         inspector.addWidget(tabs)
         
         mainLayout.addWidget(self.mainview, stretch=3)
         mainLayout.addLayout(inspector, stretch=1)
-
-        self.properties.setLayout(QVBoxLayout())
-
-        self.compactness_input = QLineEdit()
-        self.compactness_input.setValidator(QIntValidator())
-        self.properties.layout().addWidget(self.compactness_input)
 
         self.timeline = QLabel("Timeline")
         
@@ -93,17 +105,22 @@ class MainWindow(QMainWindow):
     def segment(self) -> None:
         logging.info("Segmenting image...")
         self.amg.addNode(AMG.Node("Segment"))
-        self.segments = segment(self.filename, compactness=int(self.compactness_input.text()))
+        self.segments = segment(self.filename)
         regionprops = measure.regionprops(self.segments)
 
         self.outliner.clear()
         for region in range(len(regionprops)):
             self.outliner.addItem("Region " + str(region) + ": " + str(regionprops[region].area) + " pixels")
-        
+
         self.regionprops = regionprops
 
     def open_file(self) -> None:
-        (self.filename, _) = QFileDialog.getOpenFileName(filter="Images (*.tif *.tiff *.jpg *.png)", directory="./datasets")
+        (self.filename, _) = QFileDialog.getOpenFileName(filter="Images (*.tif *.tiff)", directory="./datasets")
+        if not self.filename:
+            logging.warning("No file selected")
+            return
+        
+        logging.info("Open file: " + self.filename)
         self.amg.addNode(AMG.Node("Open File: " + self.filename))
         self.viewbox.openFile(self.filename)
         self.lastCursorPosition = self.viewbox.pos()
