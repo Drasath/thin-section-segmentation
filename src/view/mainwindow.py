@@ -4,6 +4,11 @@ from PyQt5.QtGui import *
 import logging
 import numpy as np
 from skimage import measure
+from skimage import io
+from skimage import color
+from skimage import segmentation
+import matplotlib.pyplot as plt
+
 
 from constants import *
 from model import AMG
@@ -31,14 +36,18 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence('Ctrl+Q'), self, self.segment)
 
         self.amg = AMG.AMG()
+        self.show_borders = False
         
         self.setupUI()
 
+    # TODO - Refactor this mess. LH
     def setupUI(self) -> None:
         # Menubar
         menubarItems = [["Open File", self.open_file],
                         ["Save File", self.save_file],
-                        ["Segment",   self.segment],
+                        ["Global segment", self.segment],
+                        ["Apply modifier", self.apply_modifier],
+                        ["Toggle Borders", self.toggleBorders],
                         ["Print AMG", self.printAMG]]
        
         for item in menubarItems:
@@ -50,19 +59,14 @@ class MainWindow(QMainWindow):
         self.mainview = QWidget()
         self.viewbox = Canvas(self, self.mainview)
 
-        self.tmp = Canvas(self, self.mainview)
-        self.tmp.image.fill(QColor(0, 0, 0, 0))
-
         inspector = QVBoxLayout()
         tabs = QTabWidget()
 
         self.outliner = QListWidget()
-        self.outliner.itemClicked.connect(self.selectRegion)
+        self.outliner.itemClicked.connect(self.selectRegion)    # TODO - Make this work when you select using the keyboard. LH
 
         self.zoomview = QLabel("Zoom View")
 
-        self.segmentation_method = QWidget()
-        self.segmentation_method.setLayout(QVBoxLayout())
         self.parameters = ParameterTab(self, modifiers[0])
 
         combobox = QComboBox()
@@ -70,14 +74,15 @@ class MainWindow(QMainWindow):
         for modifier in modifiers:
             combobox.addItem(modifier.name)
 
-        self.segmentation_method.layout().addWidget(combobox)
-        self.segmentation_method.layout().setAlignment(Qt.AlignTop)
         combobox.currentIndexChanged.connect(lambda: self.parameters.setModifier(modifiers[combobox.currentIndex()]))
+        self.segmentation_method_tab = QWidget()
+        self.segmentation_method_tab.setLayout(QVBoxLayout())
+        self.segmentation_method_tab.layout().setAlignment(Qt.AlignTop)
+        self.segmentation_method_tab.layout().addWidget(combobox)
+        self.segmentation_method_tab.layout().addWidget(self.parameters)
         
-
-        tabs.addTab(self.parameters, "Properties")
+        tabs.addTab(self.segmentation_method_tab, "Properties")
         tabs.addTab(self.outliner, "Inspector")
-        tabs.addTab(self.segmentation_method, "Segmentation Method")
 
 
         inspector.addWidget(self.zoomview)
@@ -97,9 +102,11 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(widget)
 
     def undo(self) -> None:
+        # TODO - Implement undo function. LH
         pass
 
     def reset(self) -> None:
+        # TODO - Implement reset function. LH
         pass
 
     def segment(self) -> None:
@@ -113,6 +120,26 @@ class MainWindow(QMainWindow):
             self.outliner.addItem("Region " + str(region) + ": " + str(regionprops[region].area) + " pixels")
 
         self.regionprops = regionprops
+
+    def apply_modifier(self) -> None:
+        self.amg.addNode(AMG.Node("Apply Modifier: " + self.parameters.modifier.name))
+        modifiers[0].apply(segments = self.segments)
+
+    # TODO - Move this to the canvas class. LH
+    def toggleBorders(self) -> None:
+        image = io.imread(self.filename, plugin='pil')
+
+        image = color.gray2rgb(image)
+
+        if self.show_borders:
+            self.show_borders = False
+        else:
+            self.show_borders = True
+            image = segmentation.mark_boundaries(image, self.segments, color=(0, 1, 0))
+            image = (image * 255).astype(np.uint8) # REVIEW - Is there a better way to do this? LH
+
+        q_image = QImage(image, image.shape[1], image.shape[0], QImage.Format_RGB888)
+        self.viewbox.setImage(q_image)
 
     def open_file(self) -> None:
         (self.filename, _) = QFileDialog.getOpenFileName(filter="Images (*.tif *.tiff)", directory="./datasets")
@@ -138,7 +165,18 @@ class MainWindow(QMainWindow):
         selectedIndex = self.outliner.selectedIndexes()[0].row()
         
         bbox = self.regionprops[selectedIndex].bbox
-        self.zoomview.setPixmap(QPixmap.fromImage(self.viewbox.image.copy(bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1])))
+
+        image = io.imread(self.filename, plugin='pil')
+        image = color.gray2rgb(image)
+
+        mask = self.segments == selectedIndex + 1 # FIXME - This + 1 is a botch. LH
+        image[mask] = (255, 0, 0)
+
+        q_image = QImage(image.tobytes(), image.shape[1], image.shape[0], QImage.Format_RGB888)
+
+        self.viewbox.setImage(q_image)
+
+        # TODO - Implement zoom view. LH
 
     def printAMG(self) -> None:
-        pass
+        print(self.amg)

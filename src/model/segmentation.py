@@ -7,6 +7,7 @@ from skimage import morphology
 # TODO - Refactor. LH
 # TODO - Expand on this, allow for setting the parameters and have multiple options. LH
 
+# SECTION - Taken from https://scikit-image.org/docs/stable/auto_examples/segmentation/plot_rag_merge.html
 def merge_mean_color(graph, src, dst):
     """Callback called before merging two nodes of a mean color distance graph.
 
@@ -50,8 +51,9 @@ def weight_mean_color(graph, src, dst, n):
     diff = np.linalg.norm(diff)
     return {'weight': diff}
 
+#!SECTION
 
-def segment(filename, n_segments=500, compactness=0.3, min_lum=0.4, min_size=500):    
+def segment(filename, n_segments=500, compactness=0.1, min_lum=0.2, min_size=500):    
     image = io.imread(filename, plugin='pil')
     
     # Compute a mask
@@ -65,13 +67,12 @@ def segment(filename, n_segments=500, compactness=0.3, min_lum=0.4, min_size=500
 
     # Merge segments with region adjacency graph
     g = graph.rag_mean_color(image, segments, mode='similarity')
-    labels = graph.merge_hierarchical(segments, g, thresh=35, rag_copy=False, in_place_merge=True, merge_func=merge_mean_color, weight_func=weight_mean_color)
+    segments = graph.merge_hierarchical(segments, g, thresh=35, rag_copy=False, in_place_merge=True, merge_func=merge_mean_color, weight_func=weight_mean_color)
 
-
-    out = color.label2rgb(labels, image, kind='avg', bg_label=0)
-    out = segmentation.mark_boundaries(out, labels, (0, 0, 0))
-    plt.imshow(out)
-    plt.show()
+    # out = color.label2rgb(labels, image, kind='avg', bg_label=0)
+    # out = segmentation.mark_boundaries(out, labels, (0, 0, 0))
+    # plt.imshow(out)
+    # plt.show()
 
     return segments
 

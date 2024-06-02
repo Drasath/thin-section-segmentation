@@ -11,6 +11,21 @@ class Canvas(QWidget):
         self.image.fill(Qt.white)
         self.parent = parent
 
+    def setImage(self, image):
+        self.revisions.append(self.image)
+        self.image = image
+
+        # Scale image to fit the window keep track of the resize for later
+        width, height = self.image.width(), self.image.height()
+        if width > height:
+            self.image = self.image.scaledToWidth(self.width())
+        else:
+            self.image = self.image.scaledToHeight(self.height())
+        
+        self.sizeChange = (self.width()/width, self.height()/height)
+        
+        self.update()
+
     def openFile(self, filename):
         self.revisions.clear()
         self.image = QImage(filename)

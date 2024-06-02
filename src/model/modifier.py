@@ -3,7 +3,7 @@ class Modifier():
         self.name = name
         self.inputs = []
 
-    def apply(self):
+    def apply(self, image, segments, parameters):
         pass
 
     def __str__(self):
