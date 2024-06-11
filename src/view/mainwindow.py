@@ -4,11 +4,8 @@ from PyQt5.QtGui import *
 import logging
 import numpy as np
 from skimage import measure
-from skimage import io
-from skimage import color
-from skimage import segmentation
-import matplotlib.pyplot as plt
-
+import zipfile
+import os
 
 from constants import *
 from model import AMG
@@ -35,29 +32,26 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence('Ctrl+R'), self, self.reset)
         QShortcut(QKeySequence('Ctrl+Q'), self, self.segment)
 
-        self.amg = AMG.AMG()
-        self.show_borders = False
+        self.initialize_variables()
         
         self.setupUI()
 
-    # TODO - Refactor this mess. LH
+    def initialize_variables(self) -> None:
+        self.amg = AMG.AMG()
+        self.filename = None
+        self.segments = None
+        self.regionprops = None
+        self.lc = None
+
     def setupUI(self) -> None:
-        # Menubar
-        menubarItems = [["Open File", self.open_file],
-                        ["Save File", self.save_file],
-                        ["Global segment", self.segment],
-                        ["Apply modifier", self.apply_modifier],
-                        ["Toggle Borders", self.toggleBorders],
-                        ["Print AMG", self.printAMG]]
-       
-        for item in menubarItems:
-            self.menuBar().addAction(item[0], item[1])
 
         # Main Layout
         mainLayout = QHBoxLayout()
 
         self.mainview = QWidget()
-        self.viewbox = Canvas(self, self.mainview)
+        self.viewbox = Canvas(self)
+
+        self.init_menubar()
 
         inspector = QVBoxLayout()
         tabs = QTabWidget()
@@ -65,12 +59,11 @@ class MainWindow(QMainWindow):
         self.outliner = QListWidget()
         self.outliner.itemClicked.connect(self.selectRegion)    # TODO - Make this work when you select using the keyboard. LH
 
-        self.zoomview = QLabel("Zoom View")
-
         self.parameters = ParameterTab(self, modifiers[0])
 
         combobox = QComboBox()
 
+        # Load modifiers
         for modifier in modifiers:
             combobox.addItem(modifier.name)
 
@@ -81,9 +74,8 @@ class MainWindow(QMainWindow):
         self.segmentation_method_tab.layout().addWidget(combobox)
         self.segmentation_method_tab.layout().addWidget(self.parameters)
         
-        tabs.addTab(self.segmentation_method_tab, "Properties")
+        tabs.addTab(self.segmentation_method_tab, "Refinement")
         tabs.addTab(self.outliner, "Inspector")
-
 
         inspector.addWidget(self.zoomview)
         inspector.addWidget(tabs)
@@ -101,6 +93,24 @@ class MainWindow(QMainWindow):
         widget.setLayout(layout)
         self.setCentralWidget(widget)
 
+    def init_menubar(self) -> None:
+        menubarItems = [["Open File", self.open_file],
+                        ["Save File", self.save_file],
+                        ["Global segment", self.segment],
+                        ["Apply modifier", self.apply_modifier],
+                        ["Toggle Borders", self.viewbox.toggleBorders]]
+       
+        for item in menubarItems:
+            self.menuBar().addAction(item[0], item[1])
+
+    def load_modifiers(self) -> None:
+        # TODO - Implement loading of modifiers. LH
+        pass
+
+    def apply_modifier(self) -> None:
+        self.amg.addNode(AMG.Node("Apply Modifier: " + self.parameters.modifier.name))
+        modifiers[0].apply(segments=self.segments)
+
     def undo(self) -> None:
         # TODO - Implement undo function. LH
         pass
@@ -112,7 +122,7 @@ class MainWindow(QMainWindow):
     def segment(self) -> None:
         logging.info("Segmenting image...")
         self.amg.addNode(AMG.Node("Segment"))
-        self.segments = segment(self.filename)
+        self.segments, self.lc = segment(self.filename, n_segments=1000)
         regionprops = measure.regionprops(self.segments)
 
         self.outliner.clear()
@@ -121,28 +131,8 @@ class MainWindow(QMainWindow):
 
         self.regionprops = regionprops
 
-    def apply_modifier(self) -> None:
-        self.amg.addNode(AMG.Node("Apply Modifier: " + self.parameters.modifier.name))
-        modifiers[0].apply(segments = self.segments)
-
-    # TODO - Move this to the canvas class. LH
-    def toggleBorders(self) -> None:
-        image = io.imread(self.filename, plugin='pil')
-
-        image = color.gray2rgb(image)
-
-        if self.show_borders:
-            self.show_borders = False
-        else:
-            self.show_borders = True
-            image = segmentation.mark_boundaries(image, self.segments, color=(0, 1, 0))
-            image = (image * 255).astype(np.uint8) # REVIEW - Is there a better way to do this? LH
-
-        q_image = QImage(image, image.shape[1], image.shape[0], QImage.Format_RGB888)
-        self.viewbox.setImage(q_image)
-
     def open_file(self) -> None:
-        (self.filename, _) = QFileDialog.getOpenFileName(filter="Images (*.tif *.tiff)", directory="./datasets")
+        (self.filename, _) = QFileDialog.getOpenFileName(filter="Images (*.tif *.tiff)", directory=str(PROJECT_DIRECTORY / "datasets"))
         if not self.filename:
             logging.warning("No file selected")
             return
@@ -154,29 +144,33 @@ class MainWindow(QMainWindow):
 
     def save_file(self) -> None:
         #TODO - Create save file pipeline
-        np.save("segments.npy", self.segments)
+        # np.save("segments.npy", self.segments)
         # Store AMG
         with open("amg.json", "w") as f:
             f.write(self.amg.toJSON())
         
+        file_path = Path(f"test{'.save'}")
+
+        if file_path.exists():
+            os.remove(file_path)
+        with zipfile.ZipFile(file_path, 'w') as savefile:
+            savefile.write(str(PROJECT_DIRECTORY / "logs" / "log.log"), "log.log")
+            savefile.write('amg.json')
+            savefile.mkdir('cache')
+            # for image in range(len(self.viewbox.revisions)):
+            #     io.imsave(f'{image}', self.viewbox.revisions[image])
+            #     savefile.write(str(image), f'cache/{image}')
+
+        
+        # save_manager.save()
         logging.info("Saved file")
 
     def selectRegion(self) -> None:
         selectedIndex = self.outliner.selectedIndexes()[0].row()
-        
-        bbox = self.regionprops[selectedIndex].bbox
-
-        image = io.imread(self.filename, plugin='pil')
-        image = color.gray2rgb(image)
-
-        mask = self.segments == selectedIndex + 1 # FIXME - This + 1 is a botch. LH
-        image[mask] = (255, 0, 0)
-
-        q_image = QImage(image.tobytes(), image.shape[1], image.shape[0], QImage.Format_RGB888)
-
-        self.viewbox.setImage(q_image)
+        self.viewbox.selectSegment(selectedIndex)
 
         # TODO - Implement zoom view. LH
+        # bbox = self.regionprops[selectedIndex].bbox
 
     def printAMG(self) -> None:
         print(self.amg)

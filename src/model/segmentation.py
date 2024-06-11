@@ -58,31 +58,23 @@ def segment(filename, n_segments=800, compactness=0.1, min_lum=0.2, min_size=500
     image = io.imread(filename, plugin='pil')
     
     # Compute a mask
-    mask = morphology.remove_small_holes(
-        morphology.remove_small_objects(image < min_lum, min_size), min_size
-    )
-    mask = morphology.opening(mask, morphology.disk(3))
+    mask = image > min_lum
+    mask = morphology.remove_small_objects(mask, min_size=min_size)
 
     # Perform SLIC segmentation
-    segments = segmentation.slic(image, n_segments=n_segments, compactness=compactness, channel_axis=None)
+    segments = segmentation.slic(image, n_segments=n_segments, compactness=compactness, mask=mask, channel_axis=None)
 
-    # edges = filters.sobel(image)
-    # edges_rgb = color.gray2rgb(edges)
+    edges = filters.sobel(image)
+    edges_rgb = color.gray2rgb(edges)
 
-    # g = graph.rag_boundary(segments, edges)
-    # lc = graph.show_rag(segments, g, edges_rgb, img_cmap=None, edge_cmap='viridis',
-    #                     edge_width=1.2)
-    
-    # plt.colorbar(lc, fraction=0.03)
-    # plt.title('RAG with edge colors')
-    # plt.show()
-    
+    g = graph.rag_boundary(segments, edges)
+    lc = graph.show_rag(segments, g, edges_rgb, img_cmap=None, edge_cmap='viridis', edge_width=1.2)
+
     # Merge segments with region adjacency graph
     g = graph.rag_mean_color(image, segments, mode='similarity')
-    segments = graph.merge_hierarchical(segments, g, thresh=35, rag_copy=False, in_place_merge=True, merge_func=merge_mean_color, weight_func=weight_mean_color)
+    segments = graph.merge_hierarchical(segments, g, thresh=0.4, rag_copy=False, in_place_merge=True, merge_func=merge_mean_color, weight_func=weight_mean_color)
 
-
-    return segments
+    return segments, lc
 
 if __name__ == "__main__":
     image = io.imread("./data/example.png")
