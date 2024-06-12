@@ -72,7 +72,7 @@ def segment(filename, n_segments=800, compactness=0.1, min_lum=0.2, min_size=500
 
     # Merge segments with region adjacency graph
     g = graph.rag_mean_color(image, segments, mode='similarity')
-    segments = graph.merge_hierarchical(segments, g, thresh=0.4, rag_copy=False, in_place_merge=True, merge_func=merge_mean_color, weight_func=weight_mean_color)
+    segments = graph.merge_hierarchical(segments, g, thresh=0.1, rag_copy=False, in_place_merge=True, merge_func=merge_mean_color, weight_func=weight_mean_color)
 
     return segments, lc
 

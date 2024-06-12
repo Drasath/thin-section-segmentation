@@ -3,7 +3,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 import logging
 import numpy as np
-from skimage import measure
+from skimage import measure, io
 import zipfile
 import os
 
@@ -41,6 +41,7 @@ class MainWindow(QMainWindow):
         self.filename = None
         self.segments = None
         self.regionprops = None
+        self.regionprops_text = None
         self.lc = None
 
     def setupUI(self) -> None:
@@ -49,7 +50,10 @@ class MainWindow(QMainWindow):
         mainLayout = QHBoxLayout()
 
         self.mainview = QWidget()
+        self.mainview.setLayout(QVBoxLayout())
+
         self.viewbox = Canvas(self)
+        self.mainview.layout().addWidget(self.viewbox)
 
         self.init_menubar()
 
@@ -61,23 +65,32 @@ class MainWindow(QMainWindow):
 
         self.parameters = ParameterTab(self, modifiers[0])
 
-        combobox = QComboBox()
+        self.combobox = QComboBox()
 
         # Load modifiers
         for modifier in modifiers:
-            combobox.addItem(modifier.name)
+            self.combobox.addItem(modifier.name)
 
-        combobox.currentIndexChanged.connect(lambda: self.parameters.setModifier(modifiers[combobox.currentIndex()]))
+        self.combobox.currentIndexChanged.connect(lambda: self.parameters.setModifier(modifiers[self.combobox.currentIndex()]))
         self.segmentation_method_tab = QWidget()
         self.segmentation_method_tab.setLayout(QVBoxLayout())
         self.segmentation_method_tab.layout().setAlignment(Qt.AlignTop)
-        self.segmentation_method_tab.layout().addWidget(combobox)
+        self.segmentation_method_tab.layout().addWidget(self.combobox)
         self.segmentation_method_tab.layout().addWidget(self.parameters)
         
-        tabs.addTab(self.segmentation_method_tab, "Refinement")
-        tabs.addTab(self.outliner, "Inspector")
+        self.properties_tab = QWidget()
+        self.properties_tab.setLayout(QVBoxLayout())
+        self.selected_region_properties = QLabel("Properties")
+        self.properties_tab.layout().addWidget(self.selected_region_properties)
+        zoom_button = QPushButton("Zoom")
+        zoom_button.clicked.connect(self.viewbox.zoomIn)
+        self.properties_tab.layout().addWidget(zoom_button)
 
-        inspector.addWidget(self.zoomview)
+        tabs.addTab(self.outliner, "Inspector")
+        tabs.addTab(self.properties_tab, "Properties")
+        tabs.addTab(self.segmentation_method_tab, "Refinement")
+
+        # inspector.addWidget(self.zoomview)
         inspector.addWidget(tabs)
         
         mainLayout.addWidget(self.mainview, stretch=3)
@@ -98,7 +111,9 @@ class MainWindow(QMainWindow):
                         ["Save File", self.save_file],
                         ["Global segment", self.segment],
                         ["Apply modifier", self.apply_modifier],
-                        ["Toggle Borders", self.viewbox.toggleBorders]]
+                        ["Toggle Borders", self.viewbox.toggleBorders],
+                        ["Toggle RAG", self.viewbox.toggleRAG]]
+                        
        
         for item in menubarItems:
             self.menuBar().addAction(item[0], item[1])
@@ -109,7 +124,8 @@ class MainWindow(QMainWindow):
 
     def apply_modifier(self) -> None:
         self.amg.addNode(AMG.Node("Apply Modifier: " + self.parameters.modifier.name))
-        modifiers[0].apply(segments=self.segments)
+        res = modifiers[self.combobox.currentIndex()].apply(image=self.viewbox.image, segments=self.segments, parameters=self.parameters.getParameters())
+        self.viewbox.setImage(res)
 
     def undo(self) -> None:
         # TODO - Implement undo function. LH
@@ -123,13 +139,13 @@ class MainWindow(QMainWindow):
         logging.info("Segmenting image...")
         self.amg.addNode(AMG.Node("Segment"))
         self.segments, self.lc = segment(self.filename, n_segments=1000)
-        regionprops = measure.regionprops(self.segments)
+        self.regionprops = measure.regionprops(self.segments)
 
         self.outliner.clear()
-        for region in range(len(regionprops)):
-            self.outliner.addItem("Region " + str(region) + ": " + str(regionprops[region].area) + " pixels")
+        for region in range(len(self.regionprops)):
+            self.outliner.addItem("Region " + str(region) + ": " + str(self.regionprops[region].area) + " pixels")
 
-        self.regionprops = regionprops
+        self.regionprops_text = self.regionprops
 
     def open_file(self) -> None:
         (self.filename, _) = QFileDialog.getOpenFileName(filter="Images (*.tif *.tiff)", directory=str(PROJECT_DIRECTORY / "datasets"))
@@ -156,18 +172,16 @@ class MainWindow(QMainWindow):
         with zipfile.ZipFile(file_path, 'w') as savefile:
             savefile.write(str(PROJECT_DIRECTORY / "logs" / "log.log"), "log.log")
             savefile.write('amg.json')
-            savefile.mkdir('cache')
-            # for image in range(len(self.viewbox.revisions)):
-            #     io.imsave(f'{image}', self.viewbox.revisions[image])
-            #     savefile.write(str(image), f'cache/{image}')
+            for image in range(len(self.viewbox.revisions)):
+                logging.info(f"Saving image")
+                io.imsave(f'{image}.tif', self.viewbox.revisions[image])
+                savefile.write(f'{image}.tif', f'cache/{image}.tif')
 
-        
-        # save_manager.save()
         logging.info("Saved file")
 
     def selectRegion(self) -> None:
         selectedIndex = self.outliner.selectedIndexes()[0].row()
-        self.viewbox.selectSegment(selectedIndex)
+        self.viewbox.selectSegment(selectedIndex + 1)
 
         # TODO - Implement zoom view. LH
         # bbox = self.regionprops[selectedIndex].bbox

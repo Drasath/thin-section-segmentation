@@ -34,6 +34,7 @@ class ParameterTab(QWidget):
 
     def setModifier(self, modifier):
         self.clear()
+        self.modifier = modifier
         self.layout.addWidget(QLabel(modifier.name))
 
         for input in modifier.inputs:
@@ -45,3 +46,17 @@ class ParameterTab(QWidget):
 
     def text(self):
         return self.input.text()
+
+    def getParameters(self):
+        parameters = {}
+        i = 1
+        for parameter in self.modifier.inputs:
+            input = self.layout.itemAt(i).widget()
+            if parameter['type'] == "int":
+                parameters[input.placeholderText()] = int(input.text())
+            elif parameter['type'] == "float":
+                parameters[input.placeholderText()] = float(input.text())
+
+            i += 1
+        
+        return parameters
