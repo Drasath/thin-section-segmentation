@@ -54,9 +54,8 @@ def weight_mean_color(graph, src, dst, n):
 
 #!SECTION
 
-def segment(filename, n_segments=800, compactness=0.1, min_lum=0.2, min_size=500):    
-    image = io.imread(filename, plugin='pil')
-    
+def segment(image, n_segments=800, compactness=0.1, min_lum=0.2, min_size=500):
+    image = color.rgb2gray(image)    
     # Compute a mask
     mask = image > min_lum
     mask = morphology.remove_small_objects(mask, min_size=min_size)
@@ -71,8 +70,8 @@ def segment(filename, n_segments=800, compactness=0.1, min_lum=0.2, min_size=500
     lc = graph.show_rag(segments, g, edges_rgb, img_cmap=None, edge_cmap='viridis', edge_width=1.2)
 
     # Merge segments with region adjacency graph
-    g = graph.rag_mean_color(image, segments, mode='similarity')
-    segments = graph.merge_hierarchical(segments, g, thresh=0.1, rag_copy=False, in_place_merge=True, merge_func=merge_mean_color, weight_func=weight_mean_color)
+    # g = graph.rag_mean_color(image, segments, mode='similarity')
+    # segments = graph.merge_hierarchical(segments, g, thresh=0.1, rag_copy=False, in_place_merge=True, merge_func=merge_mean_color, weight_func=weight_mean_color)
 
     return segments, lc
 

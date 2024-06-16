@@ -1,9 +1,12 @@
+import numpy as np
+
 class Modifier():
-    def __init__(self, name):
+    def __init__(self, name, type):
         self.name = name
+        self.type = type
         self.inputs = []
 
-    def apply(self, image, segments, parameters):
+    def apply(self, image:np.ndarray, segments, parameters:dict):
         pass
 
     def __str__(self):

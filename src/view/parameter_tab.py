@@ -22,6 +22,7 @@ class ParameterInput(QLineEdit):
         elif input["type"] == "marker":
             self.setReadOnly(True)
             self.setPlaceholderText("Select a marker")
+            # Add position line edit
 
 class ParameterTab(QWidget):
     def __init__(self, parent, modifier):
@@ -30,9 +31,9 @@ class ParameterTab(QWidget):
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
 
-        self.setModifier(modifier)
+        self.set_modifier(modifier)
 
-    def setModifier(self, modifier):
+    def set_modifier(self, modifier):
         self.clear()
         self.modifier = modifier
         self.layout.addWidget(QLabel(modifier.name))
@@ -47,7 +48,7 @@ class ParameterTab(QWidget):
     def text(self):
         return self.input.text()
 
-    def getParameters(self):
+    def get_parameters(self):
         parameters = {}
         i = 1
         for parameter in self.modifier.inputs:

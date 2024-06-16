@@ -1,5 +1,9 @@
-from .watershed import WatershedModifier
 from .erosion import ErosionModifier
-from .slic import SLICModifier
+from .dilation import DilationModifier
+from .opening import OpeningModifier
+from .closing import ClosingModifier
+from .darken import DarkenModifier
+from .watershed import WatershedModifier
+from .histogram_equalization import HistogramEqualizationModifier
 
-modifiers = [WatershedModifier(), ErosionModifier(), SLICModifier()]
+modifiers = [ErosionModifier(), DilationModifier(), OpeningModifier(), ClosingModifier(), DarkenModifier(), WatershedModifier(), HistogramEqualizationModifier()]

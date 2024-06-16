@@ -9,13 +9,16 @@ from skimage import io
 import logging
 
 class Canvas(QWidget):
+    """
+    """
+
     def __init__(self, parent, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.setFixedSize(600, 600)
+
         # TODO - Clean this up. LH
         self.revisions = []
+        self.markers = []
         self.q_image = QImage()
-        self.q_image.fill(Qt.white)
         self.image = np.ndarray
         self.parent = parent
         self.lastPoint = QPoint()
@@ -26,24 +29,21 @@ class Canvas(QWidget):
         self.show_borders = False
         self.show_rag = False
         self.selectedIndex = None
-        self.markers = []
 
-    def setImage(self, image: np.ndarray):
+    def set_image(self, image: np.ndarray):
         if self.show_borders:
-            # image = segmentation.mark_boundaries(image, self.parent.segments, color=(0, 1, 0))
-            labels = color.label2rgb(self.parent.segments, image=image, bg_label=0)
-            image = (labels * 255).astype(np.uint8) # REVIEW - Is there a better way to do this? LH
-            # TODO - add overlay line contours
+            image = segmentation.mark_boundaries(image, self.parent.segments, color=(0, 1, 0))
+            image = (image * 255).astype(np.uint8) # REVIEW - Is there a better way to do this? LH
 
         self.revisions.append(self.image)
 
         logging.debug(f"Setting image with shape {image.shape}")
 
         self.q_image = QImage(image, image.shape[1], image.shape[0], QImage.Format_RGB888)
-        self.resizeImage()
+        self.resize_image()
         self.update()
 
-    def resizeImage(self):
+    def resize_image(self):
         width, height = self.q_image.width(), self.q_image.height()
         if width > height:
             self.q_image = self.q_image.scaledToWidth(self.width())
@@ -55,13 +55,25 @@ class Canvas(QWidget):
 
         self.update()
 
-    # TODO - Refactor this method. LH
+    def draw_markers(self, qp):
+        pass
+        # for marker in self.markers:
+        #     qp.setPen(QPen(Qt.red, 1))
+        #     qp.drawPoint(marker)
+
+  # TODO - Refactor this method. LH
     def paintEvent(self, event):
         qp = QPainter(self)
         rect = event.rect()
         qp.drawImage(rect, self.q_image, rect)
         if self.show_rag:
-            qp.setPen(QPen(Qt.red, 1))
+            gradient = QConicalGradient()
+            gradient.setCenter(rect.center())
+            gradient.setAngle(90)
+            gradient.setColorAt(0, Qt.red)
+            gradient.setColorAt(0.5, Qt.green)
+
+            qp.setPen(QPen(gradient, 4.0))
             segments = self.parent.lc.get_segments()
             for segment in segments:
                 x1, y1 = segment[0] * 1/self.resizeScale
@@ -77,28 +89,18 @@ class Canvas(QWidget):
             self.q_image = self.q_image.transformed(matrix)
             # self.q_image = self.q_image.scaled(self.q_image.width() * 2, self.q_image.height() * 2, Qt.KeepAspectRatio, Qt.SmoothTransformation)
 
-    def drawMarkers(self, qp):
-        pass
-        # for marker in self.markers:
-        #     qp.setPen(QPen(Qt.red, 1))
-        #     qp.drawPoint(marker)
-
-    def drawLine(self, qp):
-        qp.setPen(QPen(Qt.red, 1))
-        qp.drawLine(0, 0, 100, 100)
-
     def resizeEvent(self, event):
-        self.resizeImage()
+        self.resize_image()
 
-    def selectSegment(self, selectedIndex):
+    def select_segment(self, selectedIndex):
         mask = self.parent.segments == selectedIndex
         copy = self.image.copy()
         copy[mask] = (255, 0, 0)
-        self.setImage(copy)
+        self.set_image(copy)
         self.parent.selected_region_properties.setText(str(self.parent.regionprops[selectedIndex - 1]))
         self.selectedIndex = selectedIndex
 
-    def openFile(self, filename):
+    def open_file(self, filename):
         self.revisions.clear()
         self.image = io.imread(filename, plugin='pil')
 
@@ -113,9 +115,9 @@ class Canvas(QWidget):
         # plt.contour(img, origin='image')
         # plt.show()
 
-        self.setImage(self.image)
+        self.set_image(self.image)
 
-    def moveImage(self, pos):
+    def move_image(self, pos):
         self.image = self.image.transformed(QTransform().translate(pos.x(), pos.y()))
         self.update()
 
@@ -124,13 +126,12 @@ class Canvas(QWidget):
             self.lastPoint = event.pos() * self.resizeScale
             self.is_pressed = True
             self.update()
-            # logging.info(f"pressed at {self.parent.segments[self.lastPoint.y()][self.lastPoint.x()]}")
-            self.selectSegment(self.parent.segments[self.lastPoint.y()][self.lastPoint.x()])
+            self.select_segment(self.parent.segments[self.lastPoint.y()][self.lastPoint.x()])
 
     def mouseDoubleClickEvent(self, event):
         if event.button() == Qt.LeftButton:
             self.zoomedIn = not self.zoomedIn
-            self.zoomIn(event.pos())
+            self.zoom_in(event.pos())
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -141,15 +142,15 @@ class Canvas(QWidget):
     def wheelEvent(self, event):
         if event.angleDelta().y() > 0:
             
-            self.zoomIn(event.pos())
+            self.zoom_in(event.pos())
         else:
-            self.zoomOut(event.pos())
+            self.zoom_out(event.pos())
 
-    def zoomIn(self, cursorPos):
+    def zoom_in(self, cursorPos):
         # Zoom towards the mouse position
         logging.info("Zooming in")
 
-    def zoomOut(self, cursorPos):
+    def zoom_out(self, cursorPos):
         # Zoom towards the mouse position
         logging.info("Zooming out")
 
@@ -164,10 +165,10 @@ class Canvas(QWidget):
             self.revisions.clear()
             self.update()
 
-    def toggleBorders(self):
+    def toggle_borders(self):
         self.show_borders = not self.show_borders
         self.setImage(self.image)
 
-    def toggleRAG(self):
+    def toggle_RAG(self):
         self.show_rag = not self.show_rag
         self.update()

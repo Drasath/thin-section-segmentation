@@ -2,189 +2,201 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 import logging
+from skimage.measure import regionprops
 import numpy as np
-from skimage import measure, io
-import zipfile
-import os
 
 from constants import *
-from model import AMG
-from model.segmentation import segment
-from view.canvas import Canvas
-from view.parameter_tab import ParameterTab
 from modifiers import modifiers
 
-# TODO - Refactor this mess. LH
+from .viewport import Viewport
+from .parameter_tab import ParameterTab
+from model.segmentation import segment
+
 class MainWindow(QMainWindow):
+    """
+    """
 
     def __init__(self):
         super(MainWindow, self).__init__()
 
-        # Set window properties
-        images_directory = Path(PROJECT_DIRECTORY / "resources" / "images")
-        self.setWindowIcon(QIcon(str(images_directory / "icon.png")))
-        self.setWindowTitle("Thinsight")
-        self.setStatusBar(QStatusBar())
-        self.setMouseTracking(True)
+        QShortcut(QKeySequence("Ctrl+M"), self, self.merge_regions)
 
-        # Shortcuts
-        QShortcut(QKeySequence('Ctrl+Z'), self, self.undo)
-        QShortcut(QKeySequence('Ctrl+R'), self, self.reset)
-        QShortcut(QKeySequence('Ctrl+Q'), self, self.segment)
+        self.setWindowTitle("ThinSight")
+        self.setWindowIcon(QIcon(str(PROJECT_DIRECTORY / "resources" / "images" / "icon.png")))
+        self._setup_ui()
+        self.viewport.load_image("C:/Users/Drasath/Desktop/Belangrijke Bestanden/Uni/Bachelor/Year 3/Bachelor Project/thin-section-segmentation/datasets/test.tif")
 
-        self.initialize_variables()
-        
-        self.setupUI()
+    def _setup_ui(self):
 
-    def initialize_variables(self) -> None:
-        self.amg = AMG.AMG()
-        self.filename = None
-        self.segments = None
-        self.regionprops = None
-        self.regionprops_text = None
-        self.lc = None
+        # SECTION - Menu Bar
+        menu_items = {
+            "File": [
+                {"Open": self.open_file},
+                {"Save": self.save_file},
+                {"Exit": self.close}
+            ],
+            "Edit": [
+                {"Undo": self.undo},
+                {"Redo": self.redo},
+                {"Merge Regions": self.merge_regions}
+            ],
+            "View": [
+                {"Show Borders": self.toggle_borders},
+                {"Show RAG": self.toggle_rag}
+            ],
+            "Segmentation": [
+                # {"Refine": },
+                {"Segment": self.global_segmentation}
+            ],
+            "Help": [
+                {"About": self.about}
+            ]
+        }
 
-    def setupUI(self) -> None:
+        menu_bar = self.menuBar()
+        for menu_name, menu_actions in menu_items.items():
+            menu = menu_bar.addMenu(menu_name)
+            for action in menu_actions:
+                (action_name, action_function), = action.items()
+                menu.addAction(action_name, action_function)
+        #!SECTION
 
-        # Main Layout
-        mainLayout = QHBoxLayout()
+        # SECTION - Central Widget
+        central_widget = QWidget()
+        main_layout = QHBoxLayout()
+        central_widget.setLayout(main_layout)
+        viewport_wrapper = QWidget()
+        viewport_wrapper_layout = QVBoxLayout()
+        viewport_wrapper.setLayout(viewport_wrapper_layout)
+        main_layout.addWidget(viewport_wrapper)
+            # SECTION - Viewport
+        self.viewport = Viewport()
+        viewport_wrapper_layout.addWidget(self.viewport)
+            #!SECTION
 
-        self.mainview = QWidget()
-        self.mainview.setLayout(QVBoxLayout())
+            # SECTION - Timeline
+        # self.timeline = QLabel("Timeline")
+        # viewport_wrapper_layout.addWidget(self.timeline)
+            #!SECTION
 
-        self.viewbox = Canvas(self)
-        self.mainview.layout().addWidget(self.viewbox)
-
-        self.init_menubar()
-
-        inspector = QVBoxLayout()
-        tabs = QTabWidget()
+        sidebar = QWidget()
+        sidebar_layout = QVBoxLayout()
+        sidebar.setLayout(sidebar_layout)
+        main_layout.addWidget(sidebar)
 
         self.outliner = QListWidget()
-        self.outliner.itemClicked.connect(self.selectRegion)    # TODO - Make this work when you select using the keyboard. LH
+        self.outliner.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.outliner.itemClicked.connect(self.select_region)
+        sidebar_layout.addWidget(self.outliner)
 
-        self.parameters = ParameterTab(self, modifiers[0])
 
-        self.combobox = QComboBox()
+        self.inspector = QTabWidget()
+        sidebar_layout.addWidget(self.inspector)
 
-        # Load modifiers
+        self.refinement = QWidget()
+        refinement_layout = QVBoxLayout()
+        self.refinement.setLayout(refinement_layout)
+        
+        self.refinement.segmentation_method = QComboBox()
+
         for modifier in modifiers:
-            self.combobox.addItem(modifier.name)
+            self.refinement.segmentation_method.addItem(modifier.name)
 
-        self.combobox.currentIndexChanged.connect(lambda: self.parameters.setModifier(modifiers[self.combobox.currentIndex()]))
-        self.segmentation_method_tab = QWidget()
-        self.segmentation_method_tab.setLayout(QVBoxLayout())
-        self.segmentation_method_tab.layout().setAlignment(Qt.AlignTop)
-        self.segmentation_method_tab.layout().addWidget(self.combobox)
-        self.segmentation_method_tab.layout().addWidget(self.parameters)
-        
-        self.properties_tab = QWidget()
-        self.properties_tab.setLayout(QVBoxLayout())
-        self.selected_region_properties = QLabel("Properties")
-        self.properties_tab.layout().addWidget(self.selected_region_properties)
-        zoom_button = QPushButton("Zoom")
-        zoom_button.clicked.connect(self.viewbox.zoomIn)
-        self.properties_tab.layout().addWidget(zoom_button)
+        self.refinement.parameters = ParameterTab(self, modifiers[0])
+        self.refinement.segmentation_method.currentIndexChanged.connect(lambda: self.refinement.parameters.set_modifier(modifiers[self.refinement.segmentation_method.currentIndex()]))
+        refinement_layout.addWidget(self.refinement.segmentation_method)
+        refinement_layout.addWidget(self.refinement.parameters)
+        refinement_layout.addWidget(QPushButton("Apply", clicked=self.apply_modifier))
 
-        tabs.addTab(self.outliner, "Inspector")
-        tabs.addTab(self.properties_tab, "Properties")
-        tabs.addTab(self.segmentation_method_tab, "Refinement")
+        self.inspector.addTab(self.refinement, "Refinement")
 
-        # inspector.addWidget(self.zoomview)
-        inspector.addWidget(tabs)
-        
-        mainLayout.addWidget(self.mainview, stretch=3)
-        mainLayout.addLayout(inspector, stretch=1)
+        self.properties = QWidget()
+        properties_layout = QVBoxLayout()
+        self.properties.setLayout(properties_layout)
+        properties_layout.addWidget(QLabel("Properties"))
 
-        self.timeline = QLabel("Timeline")
-        
-        layout = QVBoxLayout()
-        layout.addLayout(mainLayout)
-        layout.addWidget(self.timeline)
+        self.inspector.addTab(self.properties, "Properties")
 
-        widget = QWidget()
-        widget.setLayout(layout)
-        self.setCentralWidget(widget)
+        # for modifier in modifiers:
+        #     self.inspector.addTab(ParameterTab(self, modifier), modifier.name)
 
-    def init_menubar(self) -> None:
-        menubarItems = [["Open File", self.open_file],
-                        ["Save File", self.save_file],
-                        ["Global segment", self.segment],
-                        ["Apply modifier", self.apply_modifier],
-                        ["Toggle Borders", self.viewbox.toggleBorders],
-                        ["Toggle RAG", self.viewbox.toggleRAG]]
-                        
-       
-        for item in menubarItems:
-            self.menuBar().addAction(item[0], item[1])
+        #!SECTION
 
-    def load_modifiers(self) -> None:
-        # TODO - Implement loading of modifiers. LH
+        self.setCentralWidget(central_widget)
+    
+    def open_file(self):
+        (file_path, _) = QFileDialog.getOpenFileName(filter="Images (*.tif *.tiff)", directory=str(PROJECT_DIRECTORY / "datasets")) # TODO - Allow opening of save files. LH 
+        if file_path:
+            logging.info(f"File opened: {file_path}")
+            self.viewport.load_image(file_path)
+        else:
+            logging.info("No file selected.")
+
+    def save_file(self):
+        logging.info("Saving file...")
+
+    def undo(self):
         pass
 
-    def apply_modifier(self) -> None:
-        self.amg.addNode(AMG.Node("Apply Modifier: " + self.parameters.modifier.name))
-        res = modifiers[self.combobox.currentIndex()].apply(image=self.viewbox.image, segments=self.segments, parameters=self.parameters.getParameters())
-        self.viewbox.setImage(res)
-
-    def undo(self) -> None:
-        # TODO - Implement undo function. LH
+    def redo(self):
         pass
 
-    def reset(self) -> None:
-        # TODO - Implement reset function. LH
+    def toggle_borders(self):
+        self.viewport.toggle_borders()
+
+    def toggle_rag(self):
+        self.viewport.toggle_rag()
+
+    def about(self):
         pass
 
-    def segment(self) -> None:
-        logging.info("Segmenting image...")
-        self.amg.addNode(AMG.Node("Segment"))
-        self.segments, self.lc = segment(self.filename, n_segments=1000)
-        self.regionprops = measure.regionprops(self.segments)
-
-        self.outliner.clear()
-        for region in range(len(self.regionprops)):
-            self.outliner.addItem("Region " + str(region) + ": " + str(self.regionprops[region].area) + " pixels")
-
-        self.regionprops_text = self.regionprops
-
-    def open_file(self) -> None:
-        (self.filename, _) = QFileDialog.getOpenFileName(filter="Images (*.tif *.tiff)", directory=str(PROJECT_DIRECTORY / "datasets"))
-        if not self.filename:
-            logging.warning("No file selected")
+    def global_segmentation(self):
+        # open segments cache to avoid recomputing
+        cache = np.load("segments.npy")
+        if cache is not None:
+            self.viewport.set_segments(cache)
+            props = regionprops(cache)
+            self.outliner.clear()
+            for prop in props:
+                self.outliner.addItem(f"Region {prop.label}")
             return
+
+        segments, lc = segment(self.viewport.image)
+        segments += 1
+        self.viewport.set_segments(segments)
+        props = regionprops(segments)
+        self.outliner.clear()
+        for prop in props:
+            self.outliner.addItem(f"Region {prop.label}")
+
+        np.save("segments.npy", segments)
+
+    def select_region(self, item):
+        self.viewport.selected_segments = [(self.outliner.selectedIndexes()[0].row() + 1)]
+        self.viewport.update()
+
+    def apply_modifier(self):
+        modifier = modifiers[self.refinement.segmentation_method.currentIndex()]
+        parameters = self.refinement.parameters.get_parameters()
         
-        logging.info("Open file: " + self.filename)
-        self.amg.addNode(AMG.Node("Open File: " + self.filename))
-        self.viewbox.openFile(self.filename)
-        self.lastCursorPosition = self.viewbox.pos()
+        if modifier.type == "image":
+            result = modifier.apply(self.viewport.image, self.viewport.segments, parameters)
+            self.viewport.set_image(result)
+            self.viewport._resize_image()
+        elif modifier.type == "segments":
+            for segment in self.viewport.selected_segments:
+                mask = self.viewport.segments == segment
+                segments = self.viewport.segments.copy()
+                segments[mask] = 0 # TODO - Merge with close regions. LH
+            
+                result = modifier.apply(self.viewport.image, mask, parameters)
+                segments[result] = segment
+                self.viewport.set_segments(segments)
 
-    def save_file(self) -> None:
-        #TODO - Create save file pipeline
-        # np.save("segments.npy", self.segments)
-        # Store AMG
-        with open("amg.json", "w") as f:
-            f.write(self.amg.toJSON())
-        
-        file_path = Path(f"test{'.save'}")
+    def merge_regions(self):
+        segments = self.viewport.segments.copy()
+        for segment in self.viewport.selected_segments:
+            segments[segments == segment] = self.viewport.selected_segments[0]
 
-        if file_path.exists():
-            os.remove(file_path)
-        with zipfile.ZipFile(file_path, 'w') as savefile:
-            savefile.write(str(PROJECT_DIRECTORY / "logs" / "log.log"), "log.log")
-            savefile.write('amg.json')
-            for image in range(len(self.viewbox.revisions)):
-                logging.info(f"Saving image")
-                io.imsave(f'{image}.tif', self.viewbox.revisions[image])
-                savefile.write(f'{image}.tif', f'cache/{image}.tif')
-
-        logging.info("Saved file")
-
-    def selectRegion(self) -> None:
-        selectedIndex = self.outliner.selectedIndexes()[0].row()
-        self.viewbox.selectSegment(selectedIndex + 1)
-
-        # TODO - Implement zoom view. LH
-        # bbox = self.regionprops[selectedIndex].bbox
-
-    def printAMG(self) -> None:
-        print(self.amg)
+        self.viewport.set_segments(segments)
+        self.viewport.selected_segments = [self.viewport.selected_segments[0]]
