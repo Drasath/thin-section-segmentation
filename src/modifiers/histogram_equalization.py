@@ -1,5 +1,5 @@
 from model.modifier import Modifier
-from skimage import exposure, color, img_as_float
+from skimage import exposure, color
 import logging
 
 import matplotlib.pyplot as plt
@@ -12,5 +12,8 @@ class HistogramEqualizationModifier(Modifier):
     def apply(self, image=None, segments=None, parameters=None):
         image = color.rgb2gray(image)
         logging.info("Applying Histogram Equalization modifier...")
-        
-        return color.gray2rgb(exposure.equalize_hist(image) * 255).astype('uint8')
+
+        # Local Histogram Equalization
+        image = exposure.equalize_adapthist(image, clip_limit=0.03)
+
+        return color.gray2rgb(image * 255).astype('uint8')

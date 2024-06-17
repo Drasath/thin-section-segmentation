@@ -4,6 +4,7 @@ import skimage.graph as graph
 import matplotlib.pyplot as plt
 from skimage import morphology
 from skimage import filters
+import cv2
 
 # TODO - Refactor. LH
 # TODO - Expand on this, allow for setting the parameters and have multiple options. LH
@@ -54,8 +55,13 @@ def weight_mean_color(graph, src, dst, n):
 
 #!SECTION
 
-def segment(image, n_segments=800, compactness=0.1, min_lum=0.2, min_size=500):
-    image = color.rgb2gray(image)    
+def segment(image, n_segments=800, compactness=0.1, min_lum=0.2, min_size=500, quality=0.5):
+    image = color.rgb2gray(image)
+    # scale image to quality
+    width, height = image.shape[1], image.shape[0]
+    dsize = (int(width * quality), int(height * quality))
+    image = cv2.resize(image, dsize=dsize, interpolation=cv2.INTER_CUBIC)
+
     # Compute a mask
     mask = image > min_lum
     mask = morphology.remove_small_objects(mask, min_size=min_size)
@@ -72,6 +78,8 @@ def segment(image, n_segments=800, compactness=0.1, min_lum=0.2, min_size=500):
     # Merge segments with region adjacency graph
     # g = graph.rag_mean_color(image, segments, mode='similarity')
     # segments = graph.merge_hierarchical(segments, g, thresh=0.1, rag_copy=False, in_place_merge=True, merge_func=merge_mean_color, weight_func=weight_mean_color)
+
+    segments = cv2.resize(segments, dsize=(width, height), interpolation=cv2.INTER_NEAREST)
 
     return segments, lc
 

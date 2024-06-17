@@ -11,6 +11,7 @@ from modifiers import modifiers
 from .viewport import Viewport
 from .parameter_tab import ParameterTab
 from model.segmentation import segment
+from .timeline import Timeline
 
 class MainWindow(QMainWindow):
     """
@@ -19,6 +20,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
 
+        QShortcut(QKeySequence('Ctrl+Z'), self, self.undo)
+        QShortcut(QKeySequence('Ctrl+Y'), self, self.redo)
         QShortcut(QKeySequence("Ctrl+M"), self, self.merge_regions)
 
         self.setWindowTitle("ThinSight")
@@ -33,6 +36,10 @@ class MainWindow(QMainWindow):
             "File": [
                 {"Open": self.open_file},
                 {"Save": self.save_file},
+                {"Preferences": lambda: None},
+                {"Recent Files": lambda: None},
+                {"Recent Projects": lambda: None},
+                {"Export": lambda: None},
                 {"Exit": self.close}
             ],
             "Edit": [
@@ -42,7 +49,12 @@ class MainWindow(QMainWindow):
             ],
             "View": [
                 {"Show Borders": self.toggle_borders},
-                {"Show RAG": self.toggle_rag}
+                {"Show RAG": self.toggle_rag},
+                {"Reset View": self.reset_view}
+            ],
+            "Analysis": [
+                {"Show Clustering": self.show_clustering},
+                {"Jaccard Distance": self.jaccard_distance}
             ],
             "Segmentation": [
                 # {"Refine": },
@@ -75,8 +87,8 @@ class MainWindow(QMainWindow):
             #!SECTION
 
             # SECTION - Timeline
-        # self.timeline = QLabel("Timeline")
-        # viewport_wrapper_layout.addWidget(self.timeline)
+        self.timeline = Timeline()
+        viewport_wrapper_layout.addWidget(self.timeline)
             #!SECTION
 
         sidebar = QWidget()
@@ -87,16 +99,16 @@ class MainWindow(QMainWindow):
         self.outliner = QListWidget()
         self.outliner.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.outliner.itemClicked.connect(self.select_region)
-        sidebar_layout.addWidget(self.outliner)
+        # sidebar_layout.addWidget(self.outliner)
 
+        sidebar_layout.addWidget(QLabel("Tutorial"))
 
         self.inspector = QTabWidget()
         sidebar_layout.addWidget(self.inspector)
 
         self.refinement = QWidget()
         refinement_layout = QVBoxLayout()
-        self.refinement.setLayout(refinement_layout)
-        
+        self.refinement.setLayout(refinement_layout)        
         self.refinement.segmentation_method = QComboBox()
 
         for modifier in modifiers:
@@ -110,6 +122,13 @@ class MainWindow(QMainWindow):
 
         self.inspector.addTab(self.refinement, "Refinement")
 
+        self.global_parameters = QWidget()
+        global_parameters_layout = QVBoxLayout()
+        self.global_parameters.setLayout(global_parameters_layout)
+        global_parameters_layout.addWidget(QLabel("Global Parameters"))
+        global_parameters_layout.addWidget(QPushButton("Segment", clicked=self.global_segmentation))
+        self.inspector.addTab(self.global_parameters, "Global Parameters")
+
         self.properties = QWidget()
         properties_layout = QVBoxLayout()
         self.properties.setLayout(properties_layout)
@@ -122,6 +141,8 @@ class MainWindow(QMainWindow):
 
         #!SECTION
 
+        main_layout.setStretch(0, 3)
+        main_layout.setStretch(1, 1)
         self.setCentralWidget(central_widget)
     
     def open_file(self):
@@ -152,14 +173,14 @@ class MainWindow(QMainWindow):
 
     def global_segmentation(self):
         # open segments cache to avoid recomputing
-        cache = np.load("segments.npy")
-        if cache is not None:
-            self.viewport.set_segments(cache)
-            props = regionprops(cache)
-            self.outliner.clear()
-            for prop in props:
-                self.outliner.addItem(f"Region {prop.label}")
-            return
+        # cache = np.load("segments.npy")
+        # if cache is not None:
+        #     self.viewport.set_segments(cache)
+        #     props = regionprops(cache)
+        #     self.outliner.clear()
+        #     for prop in props:
+        #         self.outliner.addItem(f"Region {prop.label}")
+        #     return
 
         segments, lc = segment(self.viewport.image)
         segments += 1
@@ -188,6 +209,7 @@ class MainWindow(QMainWindow):
                 mask = self.viewport.segments == segment
                 segments = self.viewport.segments.copy()
                 segments[mask] = 0 # TODO - Merge with close regions. LH
+                parameters["start_label"] = self.viewport.segments.max() + 1
             
                 result = modifier.apply(self.viewport.image, mask, parameters)
                 segments[result] = segment
@@ -200,3 +222,37 @@ class MainWindow(QMainWindow):
 
         self.viewport.set_segments(segments)
         self.viewport.selected_segments = [self.viewport.selected_segments[0]]
+
+    def show_clustering(self):
+        
+        data = []
+        scaler = StandardScaler()
+        normalized_data = scaler.fit_transform(data)
+
+        weights = {'feature1': 1.0, 'feature2': 0.5, 'feature3': 2.0}  # Adjust these as needed
+
+        # Apply weights to normalized data
+        weighted_data = normalized_data.copy()
+        for feature, weight in weights.items():
+            weighted_data[:, data.columns.get_loc(feature)] *= weight
+
+        kmeans = KMeans(n_clusters=3)
+        kmeans.fit(weighted_data)
+        data['Cluster'] = kmeans.labels_
+
+        plt.scatter(weighted_data[:, 0], weighted_data[:, 1], c=data['Cluster'])
+        plt.xlabel('Feature 1')
+        plt.ylabel('Feature 2')
+        plt.title('K-means Clustering with Weighted Features')
+        plt.show()
+
+    def jaccard_distance(self, a, b):
+        # Load ground truth image
+        # For each region in the ground truth image, calculate the Jaccard distance between the ground truth region and all segmented regions, record the minimum Jaccard distance
+        # Calculate the average Jaccard distance over all regions
+        # Show heatmap of Jaccard distances, where regions with a low accuracy are colored red and regions with a high accuracy are colored green
+
+        pass
+
+    def reset_view(self):
+        self.viewport.reset_transform()

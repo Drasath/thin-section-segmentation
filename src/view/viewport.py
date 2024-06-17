@@ -14,8 +14,9 @@ class Viewport(QWidget):
         super().__init__(*args, **kwargs)
 
         size = 1200
-        self.setFixedSize(size, size)
+        self.setMinimumSize(size, size)
 
+        self.transform = QTransform()
         self.image: np.ndarray = None
         self.q_image = QImage(size, size, QImage.Format_RGB888)
         self.q_image.fill(Qt.gray)
@@ -29,32 +30,62 @@ class Viewport(QWidget):
 
     def mousePressEvent(self, event):
         if event.buttons() == Qt.LeftButton:
-            pass
+            self.last_pos = event.pos()
+            self.mouse_moved = False
 
     def mouseMoveEvent(self, event):
         if event.buttons() == Qt.LeftButton:
+            qApp.changeOverrideCursor(Qt.ClosedHandCursor)
             self.mouse_moved = True
+            self.transform.translate((event.x() - self.last_pos.x()) / self.resize_scale, (event.y() - self.last_pos.y()) / self.resize_scale)
+            self.update()
+            self.last_pos = event.pos()
+            # TODO - Add constraints to the movement. LH
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.LeftButton:
             if self.mouse_moved:
                 self.mouse_moved = False
+                qApp.restoreOverrideCursor()
                 # Move image or marker depending on mode
+                
             else:
                 # Select region or add marker depending on mode
                 if self.segments is None:
                     return
+                mouse_pos = QPoint(event.x(), event.y())
+                mouse_pos = self.transform.inverted()[0].scale(self.resize_scale, self.resize_scale).map(mouse_pos)
+                if mouse_pos.x() < 0 or mouse_pos.x() >= self.segments.shape[1] or mouse_pos.y() < 0 or mouse_pos.y() >= self.segments.shape[0]:
+                    return
+
                 if event.modifiers() == Qt.ControlModifier:
-                    self.selected_segments.append(self.segments[int(event.y() * self.resize_scale), int(event.x() * self.resize_scale)])
+                    self.selected_segments.append(self.segments[int(mouse_pos.y()), int(mouse_pos.x())])
                 else:
-                    self.selected_segments = [self.segments[int(event.y() * self.resize_scale), int(event.x() * self.resize_scale)]]
+                    self.selected_segments = [self.segments[int(mouse_pos.y()), int(mouse_pos.x())]]
                 self.update()
 
     def wheelEvent(self, event):
-        logging.info(f"Wheel event: {event.angleDelta().y()}")
+        # TODO - Zoom towards mouse position. LH
+        # TODO - Zoom away from mouse position, and towards the center. LH
+        if event.angleDelta().y() > 0:
+            if self.resize_scale > 500:
+                return
+            self.transform.translate(self.width() / 2, self.height() / 2)
+            self.transform.scale(1.1, 1.1)   
+            self.transform.translate(-self.width() / 2, -self.height() / 2)
+            self.resize_scale *= 1.1
+        else:
+            if self.resize_scale < .1:
+                return
+            self.transform.translate(self.width() / 2, self.height() / 2)
+            self.transform.scale(0.9, 0.9)   
+            self.transform.translate(-self.width() / 2, -self.height() / 2)
+            self.resize_scale *= 0.9
+        self.update()
 
     def paintEvent(self, event):
         qp = QPainter(self)
+        qp.setTransform(self.transform)
         rect = event.rect()
 
         self._draw_borders(qp) if self.show_borders else qp.drawImage(rect, self.q_image, rect)
@@ -123,7 +154,7 @@ class Viewport(QWidget):
         if self.segments is None:
             return
 
-        image = segmentation.mark_boundaries(self.image, self.segments, color=(0, 1, 0), mode='subpixel')
+        image = segmentation.mark_boundaries(self.image, self.segments, color=(0, 1, 0), mode='inner')
         image = (image * 255).astype(np.uint8)
         q_image = QImage(image, image.shape[1], image.shape[0], QImage.Format_RGB888)
         q_image = q_image.scaled(self.width(), self.height())
@@ -141,4 +172,7 @@ class Viewport(QWidget):
         self.show_rag = not self.show_rag
         self.update()
     
+    def reset_transform(self):
+        self.transform.reset()
+        self.update()
     

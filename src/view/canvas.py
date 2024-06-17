@@ -108,7 +108,7 @@ class Canvas(QWidget):
             logging.error(f"Could not open file {filename}")
             return
 
-        self.image = color.gray2rgb(self.image)
+        # self.image = color.gray2rgb(self.image)
         
         # REVIEW - Might be usefull for later. LH
         # img = io.imread(filename)
