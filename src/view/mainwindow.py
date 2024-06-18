@@ -23,8 +23,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
 
-        QShortcut(QKeySequence('Ctrl+Z'), self, self.undo)
-        QShortcut(QKeySequence('Ctrl+Y'), self, self.redo)
+        # QShortcut(QKeySequence('Ctrl+Z'), self, self.undo)
+        # QShortcut(QKeySequence('Ctrl+Y'), self, self.redo)
         QShortcut(QKeySequence("Ctrl+M"), self, self.merge_regions)
 
         self.setWindowTitle("ThinSight")
@@ -53,8 +53,8 @@ class MainWindow(QMainWindow):
                 {"Exit": self.close}
             ],
             "Edit": [
-                {"Undo": self.undo},
-                {"Redo": self.redo},
+                # {"Undo": self.undo},
+                # {"Redo": self.redo},
                 {"Merge Regions": self.merge_regions}
             ],
             "View": [
@@ -65,10 +65,10 @@ class MainWindow(QMainWindow):
                 {"Reset View": self.reset_view}
             ],
             "Analysis": [
-                {"Show Clustering": self.show_clustering},
+                # {"Show Clustering": self.show_clustering},
                 {"Show Histogram": lambda: self.show_histogram()},
-                {"Jaccard Distance": self.jaccard_distance},
-                {"Print AMG": lambda: print(self.amg)}
+                # {"Jaccard Distance": self.jaccard_distance},
+                # {"Print AMG": lambda: print(self.amg)}
             ],
             "Segmentation": [
                 # {"Refine": },
@@ -102,8 +102,8 @@ class MainWindow(QMainWindow):
             #!SECTION
 
             # SECTION - Timeline
-        self.timeline = Timeline()
-        viewport_wrapper_layout.addWidget(self.timeline)
+        # self.timeline = Timeline()
+        # viewport_wrapper_layout.addWidget(self.timeline)
             #!SECTION
 
         sidebar = QWidget()
@@ -117,6 +117,8 @@ class MainWindow(QMainWindow):
         # sidebar_layout.addWidget(self.outliner)
 
         sidebar_layout.addWidget(Tutorial(self.save_as_file))
+
+        sidebar_layout.addWidget(self.outliner)
 
         self.inspector = QTabWidget()
         sidebar_layout.addWidget(self.inspector)
@@ -219,10 +221,13 @@ class MainWindow(QMainWindow):
     def store_file(self, cache=None):
         path = self.save_path
         if cache is not None:
-            path = str(path.parent / (str(cache) + "_" + path.name))
+            path = Path(path.parent / (str(cache) + "_" + path.name))
             
-        with open(path, 'wb') as file:
+        with open(str(path), 'wb') as file:
             np.save(file, self.viewport.segments)
+        
+        with open(str(path.parent / f"{str(cache)}_AMG.json"), 'w') as file:
+            file.write(self.amg.to_JSON())
 
     def save_file(self):
         if self.save_path:
@@ -264,9 +269,9 @@ class MainWindow(QMainWindow):
             "compactness": float(self.global_parameters.compactness.text() or 0.1),
             "min_size": int(self.global_parameters.min_size.text() or 500),
             "min_lum": float(self.global_parameters.min_lum.text() or 0.2),
-            "quality": float(self.global_parameters.quality.text() or 0.5)
+            "quality": float(self.global_parameters.quality.text() or 0.1)
         }
-        self.amg.addNode(AMGNode({"modifier": "Global segmentation", "parameters": []}))
+        self.amg.addNode(AMGNode({"modifier": "Global segmentation", "parameters": {**parameters}}))
         # open segments cache to avoid recomputing
         # cache = np.load("segments.npy")
         # if cache is not None:
@@ -288,7 +293,9 @@ class MainWindow(QMainWindow):
         np.save("segments.npy", segments)
 
     def select_region(self, item):
-        self.viewport.selected_segments = [(self.outliner.selectedIndexes()[0].row() + 1)]
+        self.viewport.selected_segments = []
+        for item in self.outliner.selectedIndexes():
+            self.viewport.selected_segments.append(item.row() + 1)
         self.viewport.update()
 
     def apply_modifier(self):
@@ -319,6 +326,7 @@ class MainWindow(QMainWindow):
         segments = self.viewport.segments.copy()
         for segment in self.viewport.selected_segments:
             segments[segments == segment] = self.viewport.selected_segments[0]
+            # self.outliner.takeItem(self.outliner.row(self.outliner.selectedItems()[0]))
 
         self.viewport.set_segments(segments)
         self.viewport.selected_segments = [self.viewport.selected_segments[0]]

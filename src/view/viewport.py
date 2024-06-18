@@ -30,7 +30,7 @@ class Viewport(QWidget):
         self.show_rag: bool = False
         self.show_colors: bool = False
         self.show_overlay: bool = False
-        self.resize_scale: float = 1
+        self.resize_scale: list[float] = [1, 1]
         self.mouse_moved = False
         self.zoom_level = 1
         self.selected_segments = []
@@ -44,7 +44,7 @@ class Viewport(QWidget):
         if event.buttons() == Qt.LeftButton:
             qApp.changeOverrideCursor(Qt.ClosedHandCursor)
             self.mouse_moved = True
-            dx, dy = (event.x() - self.last_pos.x()) / self.resize_scale, (event.y() - self.last_pos.y()) / self.resize_scale
+            dx, dy = (event.x() - self.last_pos.x()) / self.resize_scale[0], (event.y() - self.last_pos.y()) / self.resize_scale[1]
             self.transform.translate(dx, dy)
             self.update()
             self.last_pos = event.pos()
@@ -60,8 +60,9 @@ class Viewport(QWidget):
                 # Select region or add marker depending on mode
                 if self.segments is None:
                     return
-                mouse_pos = self.transform.inverted()[0].map(event.pos()) * self.resize_scale
-                logging.info(f"Mouse position: {event.pos()} {mouse_pos} {self.width()} {self.height()}")
+                mouse_pos = self.transform.inverted()[0].map(event.pos())
+                mouse_pos = QPoint(mouse_pos.x() * self.resize_scale[0], mouse_pos.y() * self.resize_scale[1])
+                logging.info(f"Mouse position: {event.pos()} {mouse_pos} {self.width()} {self.height()} {self.resize_scale[0]} {self.resize_scale[1]}")
                 if mouse_pos.x() < 0 or mouse_pos.x() >= self.segments.shape[1] or mouse_pos.y() < 0 or mouse_pos.y() >= self.segments.shape[0]:
                     return
 
@@ -132,7 +133,9 @@ class Viewport(QWidget):
             self.q_image = self.q_image.scaledToHeight(self.height())
 
         if self.q_image.width() != 0:
-            self.resize_scale = width / self.q_image.width()
+            self.resize_scale[0] = width / self.q_image.width()
+            self.resize_scale[1] = height / self.q_image.height()
+            logging.info(f"Resized image to {self.q_image.width()} {self.q_image.height()} {self.resize_scale[0]} {self.resize_scale[1]}")
 
     def load_image(self, image_path: str):
         self.reset()
