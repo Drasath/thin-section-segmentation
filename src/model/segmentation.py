@@ -75,14 +75,18 @@ def segment(image, n_segments=800, compactness=0.1, min_lum=0.2, min_size=500, q
     g = graph.rag_boundary(segments, edges)
     lc = graph.show_rag(segments, g, edges_rgb, img_cmap=None, edge_cmap='viridis', edge_width=1.2)
 
-    # Merge segments with region adjacency graph
-    # g = graph.rag_mean_color(image, segments, mode='similarity')
-    # segments = graph.merge_hierarchical(segments, g, thresh=0.1, rag_copy=False, in_place_merge=True, merge_func=merge_mean_color, weight_func=weight_mean_color)
+    g = graph.rag_mean_color(image, segments, mode='similarity')
+    segments = graph.merge_hierarchical(segments, g, thresh=0.3, rag_copy=False, in_place_merge=True, merge_func=merge_mean_color, weight_func=weight_mean_color)
 
     segments = cv2.resize(segments, dsize=(width, height), interpolation=cv2.INTER_NEAREST)
 
     return segments, lc
 
-if __name__ == "__main__":
-    image = io.imread("./data/example.png")
-    a = segment(image)
+def apply_rag(image, segments, threshold=0.08):
+    image = color.rgb2gray(image)
+    edges = filters.sobel(image)
+    g = graph.rag_boundary(segments, edges)
+    # Merge segments with region adjacency graph
+    g = graph.rag_mean_color(image, segments, mode='similarity')
+    segments = graph.merge_hierarchical(segments, g, thresh=threshold, rag_copy=False, in_place_merge=True, merge_func=merge_mean_color, weight_func=weight_mean_color)
+    return segments

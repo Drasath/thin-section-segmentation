@@ -29,6 +29,7 @@ class ParameterTab(QWidget):
         super().__init__()
         self.parent = parent
         self.layout = QVBoxLayout()
+        self.layout.setAlignment(Qt.AlignTop)
         self.setLayout(self.layout)
 
         self.set_modifier(modifier)
@@ -36,8 +37,7 @@ class ParameterTab(QWidget):
     def set_modifier(self, modifier):
         self.clear()
         self.modifier = modifier
-        self.layout.addWidget(QLabel(modifier.name))
-
+        
         for input in modifier.inputs:
             self.layout.addWidget(ParameterInput(input))
 
@@ -50,7 +50,7 @@ class ParameterTab(QWidget):
 
     def get_parameters(self):
         parameters = {}
-        i = 1
+        i = 0
         for parameter in self.modifier.inputs:
             input = self.layout.itemAt(i).widget()
             if parameter['type'] == "int":

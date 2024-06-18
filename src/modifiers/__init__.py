@@ -6,4 +6,4 @@ from .watershed import WatershedModifier
 from .slic import SLICModifier
 from .histogram_equalization import HistogramEqualizationModifier
 
-modifiers = [ErosionModifier(), DilationModifier(), OpeningModifier(), ClosingModifier(), WatershedModifier(), SLICModifier(), HistogramEqualizationModifier()]
+modifiers = [ErosionModifier(), DilationModifier(), OpeningModifier(), ClosingModifier(), HistogramEqualizationModifier()]
