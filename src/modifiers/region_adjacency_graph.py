@@ -1,6 +1,8 @@
 from model.modifier import Modifier
 from skimage.morphology import *
 import logging
+from skimage import filters, graph, color
+import numpy as np
 
 # SECTION - Taken from https://scikit-image.org/docs/stable/auto_examples/segmentation/plot_rag_merge.html
 def merge_mean_color(graph, src, dst):
@@ -55,8 +57,8 @@ class RAGModifier(Modifier):
 
     def apply(self, image=None, segments=None, parameters=None):
         logging.info("Applying RAG modifier...")
+        image = color.rgb2gray(image)
         edges = filters.sobel(image)
-        edges_rgb = color.gray2rgb(edges)
 
         g = graph.rag_boundary(segments, edges)
         g = graph.rag_mean_color(image, segments, mode='similarity')

@@ -25,7 +25,7 @@ class Node():
 
     def to_JSON(self):
         return {
-            "value": self.value,
+            "value": str(self.value),
             "children": [child.to_JSON() for child in self.children]
         }
 

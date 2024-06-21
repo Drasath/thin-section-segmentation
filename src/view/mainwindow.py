@@ -7,11 +7,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from constants import *
-from modifiers import modifiers
+from modifiers import modifiers, rag_modifier
 
 from .viewport import Viewport
 from .parameter_tab import ParameterTab
-from model.segmentation import segment, apply_rag
+from model.segmentation import segment
 from .timeline import Timeline
 from .tutorial import Tutorial
 from model.AMG import AMG, Node as AMGNode
@@ -35,7 +35,8 @@ class MainWindow(QMainWindow):
         self.amg = AMG(self)
         
         self.save_path = Path(PROJECT_DIRECTORY / "saves" / f"subject{SUBJECT_NR}.save")
-        self.viewport.load_image(str(PROJECT_DIRECTORY / "datasets" / "example.tif"))
+        # self.viewport.load_image(str(PROJECT_DIRECTORY / "datasets" / "example_medium_quality.tif"))
+        self.viewport.load_image(str(PROJECT_DIRECTORY / "datasets" / "test.tif"))
         # self.global_segmentation()
 
     def _setup_ui(self):
@@ -59,8 +60,8 @@ class MainWindow(QMainWindow):
             ],
             "View": [
                 {"Show Borders": self.toggle_borders},
-                {"Show Segments": self.toggle_colors},
-                {"Show Goal": self.toggle_overlay},
+                # {"Show Segments": self.toggle_colors},
+                # {"Show Goal": self.toggle_overlay},
                 # {"Show RAG": self.toggle_rag},
                 {"Reset View": self.reset_view}
             ],
@@ -111,14 +112,15 @@ class MainWindow(QMainWindow):
         sidebar.setLayout(sidebar_layout)
         main_layout.addWidget(sidebar)
 
+        self.outliner_wrapper = QTabWidget()
         self.outliner = QListWidget()
         self.outliner.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.outliner.itemClicked.connect(self.select_region)
-        # sidebar_layout.addWidget(self.outliner)
+        self.outliner_wrapper.addTab(self.outliner, "Outliner")
 
         sidebar_layout.addWidget(Tutorial(self.save_as_file))
 
-        sidebar_layout.addWidget(self.outliner)
+        sidebar_layout.addWidget(self.outliner_wrapper)
 
         self.inspector = QTabWidget()
         sidebar_layout.addWidget(self.inspector)
@@ -135,10 +137,15 @@ class MainWindow(QMainWindow):
         self.global_parameters.quality = QLineEdit()
 
         self.global_parameters.n_segments.setValidator(QIntValidator(1, 2000))
+        self.global_parameters.n_segments.setText("800")
         self.global_parameters.compactness.setValidator(QDoubleValidator(0, 1, 2))
+        self.global_parameters.compactness.setText("0.1")
         self.global_parameters.min_lum.setValidator(QDoubleValidator(0, 1, 2))
+        self.global_parameters.min_lum.setText("0.2")
         self.global_parameters.min_size.setValidator(QIntValidator(1, 10000))
+        self.global_parameters.min_size.setText("500")
         self.global_parameters.quality.setValidator(QDoubleValidator(0, 1, 2))
+        self.global_parameters.quality.setText("0.8")
         
         global_parameters_layout.addWidget(QLabel("Number of Segments (0-2000)"))
         global_parameters_layout.addWidget(self.global_parameters.n_segments)
@@ -315,7 +322,7 @@ class MainWindow(QMainWindow):
                 segments = self.viewport.segments.copy()
                 segments[mask] = 0 # TODO - Merge with close regions. LH
                 parameters["start_label"] = self.viewport.segments.max() + 1
-            
+                logging.info(f"{mask}")
                 result = modifier.apply(self.viewport.image, mask, parameters)
                 segments[result] = segment
                 self.viewport.set_segments(segments)
@@ -370,7 +377,20 @@ class MainWindow(QMainWindow):
         plt.show()
 
     def apply_rag(self):
-        self.viewport.set_segments(apply_rag(self.viewport.image, self.viewport.segments, float(self.rag_parameters.threshold.text()) or 0.08))
+        parameters = {
+            "Threshold": float(self.rag_parameters.threshold.text() or 0.08)
+        }
+
+        if not hasattr(self, "prev_segments"):
+            self.prev_segments = self.viewport.segments.copy()
+        else:
+            self.viewport.segments = self.prev_segments.copy()
+
+        self.amg.addNode(AMGNode({"modifier": rag_modifier.name, "parameters": parameters}))
+        logging.info(f"{self.viewport.segments}")
+        result = rag_modifier.apply(self.viewport.image, self.viewport.segments, parameters)
+        
+        self.viewport.set_segments(result)
 
     def toggle_colors(self):
         self.viewport.toggle_colors()
