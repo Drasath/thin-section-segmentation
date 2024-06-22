@@ -5,6 +5,8 @@ import numpy as np
 from skimage import io, color, segmentation, graph
 import logging
 
+import matplotlib.pyplot as plt
+
 from constants import *
 class Viewport(QWidget):
     """
@@ -13,8 +15,10 @@ class Viewport(QWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        size = 500
+        size = 800
+        # FIXME - Fix resizing of the viewport. LH
         self.setMinimumSize(size, size)
+        # self.setFixedSize(size, size)
         self.q_image = QImage(500, 500, QImage.Format_RGB888)
         self.q_image.fill(Qt.gray)
 
@@ -33,6 +37,7 @@ class Viewport(QWidget):
         self.mouse_moved = False
         self.zoom_level = 1
         self.selected_segments = []
+        self.colormap: np.ndarray = None
 
     def mousePressEvent(self, event):
         if event.buttons() == Qt.LeftButton:
@@ -59,7 +64,7 @@ class Viewport(QWidget):
                 if self.segments is None:
                     return
                 mouse_pos = self.transform.inverted()[0].map(event.pos())
-                mouse_pos = QPoint(mouse_pos.x(), mouse_pos.y())
+                mouse_pos = QPoint(int(mouse_pos.x() / self.resize_scale[0]), int(mouse_pos.y() / self.resize_scale[1]))
                 logging.info(f"Mouse position: {event.pos()} {mouse_pos} {self.width()} {self.height()} {self.resize_scale[0]} {self.resize_scale[1]}")
                 if mouse_pos.x() < 0 or mouse_pos.x() >= self.segments.shape[1] or mouse_pos.y() < 0 or mouse_pos.y() >= self.segments.shape[0]:
                     return
@@ -75,7 +80,6 @@ class Viewport(QWidget):
                 self.update()
 
     def wheelEvent(self, event):
-        # TODO - Zoom towards mouse position. LH
         # TODO - Zoom away from mouse position, and towards the center. LH
         x, y = int(event.pos().x()), int(event.pos().y())
         if event.angleDelta().y() > 0:
@@ -104,11 +108,11 @@ class Viewport(QWidget):
         else:
             self._draw_borders(qp, rect)  
         
-        if self.show_rag:
-            self._draw_rag(qp)
-
         if self.show_colors:
             self._draw_colors(qp, rect)
+
+        if self.show_rag:
+            self._draw_rag(qp)
 
         if self.show_overlay:
             self._draw_overlay(qp)
@@ -126,28 +130,19 @@ class Viewport(QWidget):
         self.update()
 
     def set_image(self, image: np.ndarray):
-        self.image = image
-        logging.info(f"Setting image with shape {image.shape}")
-        self.q_image = QImage(image, image.shape[1], image.shape[0], QImage.Format_RGB888)
+        self.image = image.copy()
+        image = np.ascontiguousarray(image)
+        height, width, channels = image.shape
+        self.q_image = QImage(image.data, width, height, width*channels, QImage.Format_RGB888)
+
         self.update()
  
     def _resize_image(self):
-        
+        self.set_image(self.image)
         width, height = self.q_image.width(), self.q_image.height()
-        if width > height:
-            height = height * self.width() / width
-            width = self.width()
-            # self.q_image = self.q_image.scaled(self.width(), height)
-        else:
-            width = width * self.height() / height
-            height = self.height()
-            # self.q_image = self.q_image.scaled(width, self.height())
+        self.q_image = self.q_image.scaled(self.width(), self.height(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
 
-        self.setFixedSize(width, height)
-        # if self.q_image.width() != 0:
-        #     self.resize_scale[0] = width / self.q_image.width()
-        #     self.resize_scale[1] = height / self.q_image.height()
-            # logging.info(f"Resized image to {self.q_image.width()} {self.q_image.height()} {self.resize_scale[0]} {self.resize_scale[1]}")
+        self.resize_scale = [self.resize_scale[0] * (self.q_image.width() / width), self.resize_scale[1] * (self.q_image.height() / height)]
 
     def load_image(self, image_path: str):
         # self.reset()
@@ -178,11 +173,11 @@ class Viewport(QWidget):
 
         q_image = QImage(image, image.shape[1], image.shape[0], QImage.Format_RGBA8888)
         q_image = q_image.scaled(self.width(), self.height(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        qp.drawImage(rect, q_image, rect)
+        qp.drawImage(QPoint(0,0), q_image)
 
     def _draw_image(self, qp, rect):
-        q_image = self.q_image.scaled(self.width(), self.height())
-        qp.drawImage(rect, q_image, rect)
+        q_image = self.q_image
+        qp.drawImage(QPoint(0, 0), q_image)
 
     def _draw_borders(self, qp, rect):
         if self.segments is None:
@@ -190,9 +185,11 @@ class Viewport(QWidget):
 
         image = segmentation.mark_boundaries(self.image, self.segments, color=(0, 1, 0), mode='inner')
         image = (image * 255).astype(np.uint8)
-        q_image = QImage(image, image.shape[1], image.shape[0], QImage.Format_RGB888)
+        image = np.ascontiguousarray(image)
+        height, width, channels = image.shape
+        q_image = QImage(image.data, width, height, width*channels, QImage.Format_RGB888)
         q_image = q_image.scaled(self.width(), self.height(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        qp.drawImage(rect, q_image, rect)
+        qp.drawImage(QPoint(0,0), q_image)
 
     def _draw_rag(self, qp):
         if self.rag is None:
@@ -202,12 +199,19 @@ class Viewport(QWidget):
         if self.segments is None:
             return
         
-        # for segment in self.segments:
+        # TODO - Use a colormap to color the segments. LH
+        
+        if self.colormap is None:
+            self.colormap = np.random.randint(0, 255, (np.max(self.segments) + 1, 4))
+            self.colormap[:, 3] = 128
 
-            # self._draw_segment(qp, rect, segment, color=(color[0], color[1], color[2], 128))
+        for segment in range(np.max(self.segments) + 1):
+            self._draw_segment(qp, rect, segment, color=self.colormap[segment])
 
     def _draw_overlay(self, qp):
-        overlay = QImage(str(PROJECT_DIRECTORY / "resources" / "images" / "goal.tif"))
+        path = str(PROJECT_DIRECTORY / "resources" / "images" / "goal.tif")
+        image = io.imread(path, plugin='pil')
+        overlay = QImage(image, image.shape[0], image.shape[1], QImage.Format_RGB888)
         overlay = overlay.scaled(self.width(), self.height(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
         qp.drawImage(0, 0, overlay)
 
@@ -232,4 +236,13 @@ class Viewport(QWidget):
         self.zoom_level = 1
         self.update()
 
-    
+    def invert_selection(self):
+        if self.segments is None:
+            return
+        
+        if self.selected_segments == []:
+            self.selected_segments = np.unique(self.segments)
+        
+        segments = np.unique(self.segments)
+        self.selected_segments = np.setdiff1d(segments, self.selected_segments)
+        self.update()

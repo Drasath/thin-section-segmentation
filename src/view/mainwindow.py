@@ -25,18 +25,19 @@ class MainWindow(QMainWindow):
 
         # QShortcut(QKeySequence('Ctrl+Z'), self, self.undo)
         # QShortcut(QKeySequence('Ctrl+Y'), self, self.redo)
+        self._setup_ui()
         QShortcut(QKeySequence("Ctrl+M"), self, self.merge_regions)
+        QShortcut(QKeySequence("Ctrl+I"), self, self.viewport.invert_selection)
 
         self.setWindowTitle("ThinSight")
         self.setWindowIcon(QIcon(str(PROJECT_DIRECTORY / "resources" / "images" / "icon.png")))
-        self._setup_ui()
 
         self.save_path = None
         self.amg = AMG(self)
         
         self.save_path = Path(PROJECT_DIRECTORY / "saves" / f"subject{SUBJECT_NR}.save")
-        # self.viewport.load_image(str(PROJECT_DIRECTORY / "datasets" / "example_medium_quality.tif"))
-        self.viewport.load_image(str(PROJECT_DIRECTORY / "datasets" / "test.tif"))
+        self.viewport.load_image(str(PROJECT_DIRECTORY / "datasets" / "example_medium_quality.tif"))
+        # self.viewport.load_image(str(PROJECT_DIRECTORY / "datasets" / "test.tif"))
         # self.global_segmentation()
 
     def _setup_ui(self):
@@ -60,8 +61,8 @@ class MainWindow(QMainWindow):
             ],
             "View": [
                 {"Show Borders": self.toggle_borders},
-                # {"Show Segments": self.toggle_colors},
-                # {"Show Goal": self.toggle_overlay},
+                {"Show Colors": self.toggle_colors},
+                {"Show Goal": self.toggle_overlay},
                 # {"Show RAG": self.toggle_rag},
                 {"Reset View": self.reset_view}
             ],
@@ -145,7 +146,7 @@ class MainWindow(QMainWindow):
         self.global_parameters.min_size.setValidator(QIntValidator(1, 10000))
         self.global_parameters.min_size.setText("500")
         self.global_parameters.quality.setValidator(QDoubleValidator(0, 1, 2))
-        self.global_parameters.quality.setText("0.8")
+        self.global_parameters.quality.setText("0.1")
         
         global_parameters_layout.addWidget(QLabel("Number of Segments (0-2000)"))
         global_parameters_layout.addWidget(self.global_parameters.n_segments)
@@ -293,9 +294,13 @@ class MainWindow(QMainWindow):
         segments += 1
         self.viewport.set_segments(segments)
         props = regionprops(segments)
+        biggest = max(props, key=lambda x: x.area)
         self.outliner.clear()
         for prop in props:
-            self.outliner.addItem(f"Region {prop.label}")
+            if prop == biggest:
+                self.outliner.addItem(f"Background {prop.label}")
+            else:
+                self.outliner.addItem(f"Region {prop.label}")
 
         np.save("segments.npy", segments)
 
@@ -339,27 +344,27 @@ class MainWindow(QMainWindow):
         self.viewport.selected_segments = [self.viewport.selected_segments[0]]
 
     def show_clustering(self):
-        
-        data = []
-        scaler = StandardScaler()
-        normalized_data = scaler.fit_transform(data)
+        pass
+        # data = []
+        # scaler = StandardScaler()
+        # normalized_data = scaler.fit_transform(data)
 
-        weights = {'feature1': 1.0, 'feature2': 0.5, 'feature3': 2.0}  # Adjust these as needed
+        # weights = {'feature1': 1.0, 'feature2': 0.5, 'feature3': 2.0}  # Adjust these as needed
 
-        # Apply weights to normalized data
-        weighted_data = normalized_data.copy()
-        for feature, weight in weights.items():
-            weighted_data[:, data.columns.get_loc(feature)] *= weight
+        # # Apply weights to normalized data
+        # weighted_data = normalized_data.copy()
+        # for feature, weight in weights.items():
+        #     weighted_data[:, data.columns.get_loc(feature)] *= weight
 
-        kmeans = KMeans(n_clusters=3)
-        kmeans.fit(weighted_data)
-        data['Cluster'] = kmeans.labels_
+        # kmeans = KMeans(n_clusters=3)
+        # kmeans.fit(weighted_data)
+        # data['Cluster'] = kmeans.labels_
 
-        plt.scatter(weighted_data[:, 0], weighted_data[:, 1], c=data['Cluster'])
-        plt.xlabel('Feature 1')
-        plt.ylabel('Feature 2')
-        plt.title('K-means Clustering with Weighted Features')
-        plt.show()
+        # plt.scatter(weighted_data[:, 0], weighted_data[:, 1], c=data['Cluster'])
+        # plt.xlabel('Feature 1')
+        # plt.ylabel('Feature 2')
+        # plt.title('K-means Clustering with Weighted Features')
+        # plt.show()
 
     def jaccard_distance(self, a, b):
         # Load ground truth image
@@ -373,7 +378,9 @@ class MainWindow(QMainWindow):
         self.viewport.reset_transform()
 
     def show_histogram(self):
-        plt.hist(self.viewport.image.flatten(), bins=256, range=(0, 256), density=True)
+        # FIXME - Does not display the histogram correctly the first time you call it after the segmentation. LH
+        image = self.viewport.image.flatten()
+        plt.hist(image, bins=256, range=(0, 256), density=True)
         plt.show()
 
     def apply_rag(self):
