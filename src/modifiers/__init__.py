@@ -7,5 +7,5 @@ from .slic import SLICModifier
 from .histogram_equalization import HistogramEqualizationModifier
 from .region_adjacency_graph import RAGModifier
 
-modifiers = [ErosionModifier(), DilationModifier(), OpeningModifier(), ClosingModifier(), SLICModifier(), HistogramEqualizationModifier()]
+modifiers = [ErosionModifier(), DilationModifier(), OpeningModifier(), ClosingModifier()]
 rag_modifier = RAGModifier()

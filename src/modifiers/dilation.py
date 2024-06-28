@@ -5,7 +5,7 @@ import logging
 class DilationModifier(Modifier):
     def __init__(self):
         super().__init__("Dilation", "segments")
-        self.inputs = [{"name": "Footprint size", "type": "int", "min": 0, "max": 100, "default": 1}]
+        self.inputs = [{"name": "Footprint size", "type": "int", "min": 0, "max": 100, "default": 5}]
 
     def apply(self, image=None, segments=None, parameters=None):
         logging.info("Applying Dilation modifier...")

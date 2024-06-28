@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from skimage import morphology
 from skimage import filters
 import cv2
+import logging
 
 def segment(image, n_segments=800, compactness=0.1, min_lum=0.2, min_size=500, quality=0.5):
     image = color.rgb2gray(image)
@@ -16,6 +17,10 @@ def segment(image, n_segments=800, compactness=0.1, min_lum=0.2, min_size=500, q
     # Compute a mask
     mask = image > min_lum
     mask = morphology.remove_small_objects(mask, min_size=min_size)
+
+    if mask.sum() == 0:
+        logging.warning("No mask found, returning empty segments")
+        return np.zeros((width, height), dtype=int), []
 
     # Perform SLIC segmentation
     segments = segmentation.slic(image, n_segments=n_segments, compactness=compactness, mask=mask, channel_axis=None)

@@ -53,7 +53,7 @@ class Tutorial(QFrame):
         self.pages = [
             {
                 "title": "Global segmentation",
-                "text": "To start, we will segment the image using a global method.\n\n1. Click on the 'Global Parameters' tab.\n2. Set the parameters, and segment the image.\n3. In the menu click on view -> show borders.\n4. Play around with the parameters until you get a reasonably good segmentation.\n5. Move on to the next page."
+                "text": "To start, we will segment the image using a global method.\n\n1. Click on the 'Global Parameters' tab.\n2. Set the parameters, and segment the image.\n3. Play around with the parameters until you get a reasonably good segmentation.\n4. Move on to the next page."
             }, {
                 "title": "Region Adjacency Graph",
                 "text": "The next step is to combine some of the sections we've obtained. We do this using a region adjacency graph.\n\n1. Click on the 'RAG Parameters' tab.\n2. Set the threshold, and apply the RAG.\n4. Play around with the parameters a bit.\n Select segments by clicking, select multiple with ctrl-clicking\n5. Manually merge segments by using ctrl+M\n6. Move on to the next page."

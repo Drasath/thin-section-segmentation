@@ -61,8 +61,8 @@ class MainWindow(QMainWindow):
             ],
             "View": [
                 {"Show Borders": self.toggle_borders},
-                {"Show Colors": self.toggle_colors},
-                {"Show Goal": self.toggle_overlay},
+                # {"Show Colors": self.toggle_colors},
+                # {"Show Goal": self.toggle_overlay},
                 # {"Show RAG": self.toggle_rag},
                 {"Reset View": self.reset_view}
             ],
@@ -139,24 +139,24 @@ class MainWindow(QMainWindow):
 
         self.global_parameters.n_segments.setValidator(QIntValidator(1, 2000))
         self.global_parameters.n_segments.setText("800")
-        self.global_parameters.compactness.setValidator(QDoubleValidator(0, 1, 2))
+        self.global_parameters.compactness.setValidator(QDoubleValidator(0, 1, 5))
         self.global_parameters.compactness.setText("0.1")
-        self.global_parameters.min_lum.setValidator(QDoubleValidator(0, 1, 2))
+        self.global_parameters.min_lum.setValidator(QDoubleValidator(0, 1, 5))
         self.global_parameters.min_lum.setText("0.2")
         self.global_parameters.min_size.setValidator(QIntValidator(1, 10000))
         self.global_parameters.min_size.setText("500")
-        self.global_parameters.quality.setValidator(QDoubleValidator(0, 1, 2))
+        self.global_parameters.quality.setValidator(QDoubleValidator(0, 1, 5))
         self.global_parameters.quality.setText("0.1")
         
         global_parameters_layout.addWidget(QLabel("Number of Segments (0-2000)"))
         global_parameters_layout.addWidget(self.global_parameters.n_segments)
-        global_parameters_layout.addWidget(QLabel("Compactness (0.0-1.0)"))
+        global_parameters_layout.addWidget(QLabel("Compactness (0.00-1.00)"))
         global_parameters_layout.addWidget(self.global_parameters.compactness)
-        global_parameters_layout.addWidget(QLabel("Minimum Luminance (0.0-1.0)"))
+        global_parameters_layout.addWidget(QLabel("Minimum Luminance (0.00-1.00)"))
         global_parameters_layout.addWidget(self.global_parameters.min_lum)
         global_parameters_layout.addWidget(QLabel("Minimum Grain Size (0-10000)"))
         global_parameters_layout.addWidget(self.global_parameters.min_size)
-        global_parameters_layout.addWidget(QLabel("Quality (0.0-1.0)"))
+        global_parameters_layout.addWidget(QLabel("Quality (0.00-1.00)"))
         global_parameters_layout.addWidget(self.global_parameters.quality)
         
         global_parameters_layout.addWidget(QPushButton("Segment", clicked=self.global_segmentation))
@@ -168,7 +168,7 @@ class MainWindow(QMainWindow):
         self.rag_parameters.setLayout(rag_parameters_layout)
         self.rag_parameters.threshold = QLineEdit()
         self.rag_parameters.threshold.setValidator(QDoubleValidator(0, 1, 2))
-        rag_parameters_layout.addWidget(QLabel("Threshold (0.0-1.0)"))
+        rag_parameters_layout.addWidget(QLabel("Threshold (0.00-1.00)"))
         rag_parameters_layout.addWidget(self.rag_parameters.threshold)
         self.rag_parameters.layout().addWidget(QPushButton("Apply RAG", clicked=self.apply_rag))
         self.inspector.addTab(self.rag_parameters, "RAG Parameters")
@@ -229,12 +229,13 @@ class MainWindow(QMainWindow):
     def store_file(self, cache=None):
         path = self.save_path
         if cache is not None:
+            path = Path(path)
             path = Path(path.parent / (str(cache) + "_" + path.name))
             
         with open(str(path), 'wb') as file:
             np.save(file, self.viewport.segments)
         
-        with open(str(path.parent / f"{str(cache)}_AMG.json"), 'w') as file:
+        with open(str(Path(path).parent / f"{str(cache)}_AMG.json"), 'w') as file:
             file.write(self.amg.to_JSON())
 
     def save_file(self):
@@ -293,6 +294,7 @@ class MainWindow(QMainWindow):
         segments, lc = segment(self.viewport.image, **parameters)
         segments += 1
         self.viewport.set_segments(segments)
+        self.prev_segments = self.viewport.segments.copy()
         props = regionprops(segments)
         biggest = max(props, key=lambda x: x.area)
         self.outliner.clear()
@@ -385,13 +387,10 @@ class MainWindow(QMainWindow):
 
     def apply_rag(self):
         parameters = {
-            "Threshold": float(self.rag_parameters.threshold.text() or 0.08)
+            "Threshold": float(self.rag_parameters.threshold.text() or 0.00)/100
         }
-
-        if not hasattr(self, "prev_segments"):
-            self.prev_segments = self.viewport.segments.copy()
-        else:
-            self.viewport.segments = self.prev_segments.copy()
+        
+        self.viewport.segments = self.prev_segments.copy()
 
         self.amg.addNode(AMGNode({"modifier": rag_modifier.name, "parameters": parameters}))
         logging.info(f"{self.viewport.segments}")

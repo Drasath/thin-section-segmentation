@@ -29,7 +29,7 @@ class Viewport(QWidget):
         self.image: np.ndarray = None
         self.segments: np.ndarray = None
         self.rag: graph.LineCollection = None
-        self.show_borders: bool = False
+        self.show_borders: bool = True
         self.show_rag: bool = False
         self.show_colors: bool = False
         self.show_overlay: bool = False
@@ -83,15 +83,17 @@ class Viewport(QWidget):
         # TODO - Zoom away from mouse position, and towards the center. LH
         x, y = int(event.pos().x()), int(event.pos().y())
         if event.angleDelta().y() > 0:
-            if self.zoom_level > 500:
+            if self.zoom_level >= 500:
                 return
             self.transform.translate(x, y)
             self.transform.scale(1.1, 1.1)   
             self.transform.translate(-x, -y)
             self.zoom_level *= 1.1
         else:
-            if self.zoom_level < 1:
+            if self.zoom_level <= 1:
                 return
+            x -= self.width() / 2
+            y -= self.height() / 2
             self.transform.translate(x, y)
             self.transform.scale(0.9, 0.9)   
             self.transform.translate(-x, -y)
@@ -121,6 +123,8 @@ class Viewport(QWidget):
             for segment in self.selected_segments:
                 self._draw_segment(qp, rect, segment)
 
+        qp.end()
+
     def resizeEvent(self, event):
         self._resize_image()
         self.update()
@@ -142,7 +146,7 @@ class Viewport(QWidget):
         width, height = self.q_image.width(), self.q_image.height()
         self.q_image = self.q_image.scaled(self.width(), self.height(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
 
-        self.resize_scale = [self.resize_scale[0] * (self.q_image.width() / width), self.resize_scale[1] * (self.q_image.height() / height)]
+        self.resize_scale = [(self.q_image.width() / width), (self.q_image.height() / height)]
 
     def load_image(self, image_path: str):
         # self.reset()
@@ -182,7 +186,7 @@ class Viewport(QWidget):
     def _draw_borders(self, qp, rect):
         if self.segments is None:
             return
-
+        
         image = segmentation.mark_boundaries(self.image, self.segments, color=(0, 1, 0), mode='inner')
         image = (image * 255).astype(np.uint8)
         image = np.ascontiguousarray(image)
