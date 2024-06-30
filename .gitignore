@@ -4,4 +4,7 @@ Poster.pdf
 *.save
 dist/*
 build/*
+media/videos/*
+src/analysis/segments/*
+
 main.spec

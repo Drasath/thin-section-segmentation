@@ -234,7 +234,7 @@ class MainWindow(QMainWindow):
             
         with open(str(path), 'wb') as file:
             np.save(file, self.viewport.segments)
-        
+
         with open(str(Path(path).parent / f"{str(cache)}_AMG.json"), 'w') as file:
             file.write(self.amg.to_JSON())
 
@@ -250,7 +250,7 @@ class MainWindow(QMainWindow):
         if file_path:
             logging.info(f"File saved as: {file_path}")
             if file_path.endswith(SAVE_FILE_EXTENTION):
-                self.save_path = file_path
+                self.save_path = Path(file_path)
                 self.save_file()
         else:
             logging.info("No file location selected.")

@@ -17,7 +17,6 @@ class Tutorial(QFrame):
         p = self.palette()
         p.setColor(self.backgroundRole(), Qt.white)
         self.setPalette(p)
-        self.maximumWidth = 400
 
         self.setLayout(QVBoxLayout())
         self.layout().setAlignment(Qt.AlignTop)
@@ -26,7 +25,7 @@ class Tutorial(QFrame):
         self.layout().addWidget(self.image)
         pixmap = QPixmap(str(PROJECT_DIRECTORY / "resources" / "images" / "goal.tif"))
         # pixmap = QPixmap(str(PROJECT_DIRECTORY / "datasets" / "example_medium_quality.tif"))
-        pixmap = pixmap.scaledToWidth(400)
+        pixmap = pixmap.scaledToWidth(200)
         self.image.setPixmap(pixmap)
         
         self.image.setAlignment(Qt.AlignCenter)
@@ -38,6 +37,8 @@ class Tutorial(QFrame):
 
         self.text = QLabel()
         self.layout().addWidget(self.text)
+        self.text.setWordWrap(True)
+        self.text.setFixedWidth(400)
 
         button_layout = QHBoxLayout()
         self.previous_button = QPushButton("Previous")
@@ -56,7 +57,7 @@ class Tutorial(QFrame):
                 "text": "To start, we will segment the image using a global method.\n\n1. Click on the 'Global Parameters' tab.\n2. Set the parameters, and segment the image.\n3. Play around with the parameters until you get a reasonably good segmentation.\n4. Move on to the next page."
             }, {
                 "title": "Region Adjacency Graph",
-                "text": "The next step is to combine some of the sections we've obtained. We do this using a region adjacency graph.\n\n1. Click on the 'RAG Parameters' tab.\n2. Set the threshold, and apply the RAG.\n4. Play around with the parameters a bit.\n Select segments by clicking, select multiple with ctrl-clicking\n5. Manually merge segments by using ctrl+M\n6. Move on to the next page."
+                "text": "The next step is to combine some of the sections we've obtained.\nWe do this using a region adjacency graph.\n\n1. Click on the 'RAG Parameters' tab.\n2. Set the threshold, and apply the RAG.\n4. Play around with the parameters a bit.\n Select segments by clicking, select multiple with ctrl-clicking\n5. Manually merge segments by using ctrl+M\n6. Move on to the next page."
             }, {
                 "title": "Refinement",
                 "text": "To refine our segmentation, we will apply some modifiers.\n\n1. Select a segment by clicking on it.\n2. Click on the 'Refinement' tab.\n3. Select a modifier from the list. (explained in the next page)\n4. Set the parameters and apply the modifier.\n5. Repeat steps 3 and 4 until you are satisfied with the segmentation."
