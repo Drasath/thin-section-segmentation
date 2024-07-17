@@ -1,10 +1,2 @@
-*.tif, *.tiff
+*/*.tif, */*.tiff, */*.save
 __pycache__
-Poster.pdf
-*.save
-dist/*
-build/*
-media/videos/*
-src/analysis/segments/*
-
-main.spec

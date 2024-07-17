@@ -1,8 +1,0 @@
-{
-    "image": "http://www.abc.net.au/news/image/462502-3x2-940x627.jpg",
-    "segments": [1, 3, 4],
-    "settings": {
-        "show_borders": true,
-        "show_labels": true
-    }
-}
