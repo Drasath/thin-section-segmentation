@@ -203,7 +203,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
     
     def open_file(self):
-        (file_path, _) = QFileDialog.getOpenFileName(filter="Images (*.tif *.tiff)", directory=str(PROJECT_DIRECTORY / "datasets")) # TODO - Allow opening of save files. LH 
+        (file_path, _) = QFileDialog.getOpenFileName(filter="Images (*.tif *.tiff *.save)", directory=str(PROJECT_DIRECTORY / "datasets")) # TODO - Allow opening of save files. LH 
         if file_path:
             if file_path.endswith(".tif") or file_path.endswith(".tiff"):
                 logging.info(f"File opened: {file_path}")
