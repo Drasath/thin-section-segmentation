@@ -25,8 +25,8 @@ class Node():
 
     def to_JSON(self):
         return {
-            "value": self.value,
-            "children": [child.toJSON() for child in self.children]
+            "value": str(self.value),
+            "children": [child.to_JSON() for child in self.children]
         }
 
     def add_child(self, node):
@@ -42,8 +42,6 @@ class AMG():
     
     def addNode(self, node):
         logging.debug(f"Adding modifier {node}")
-        if self.size > 0:
-            self.parent.store_file(self.size - 1)
         node.index = self.size
         self.size += 1
         if self.root == None:
@@ -52,6 +50,8 @@ class AMG():
         else:
             self.activeNode.add_child(node)
             self.activeNode = node
+
+        self.parent.store_file(self.size)
 
     def selectNode(self, node: Node):
         self.activeNode = node

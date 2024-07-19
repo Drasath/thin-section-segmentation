@@ -1,30 +1,18 @@
 from model.modifier import Modifier
 from skimage.morphology import *
 import logging
+from skimage import filters, graph, color
+import numpy as np
 
-# SECTION - Taken from https://scikit-image.org/docs/stable/auto_examples/segmentation/plot_rag_merge.html
-def merge_mean_color(graph, src, dst):
-    """Callback called before merging two nodes of a mean color distance graph.
-
-    This method computes the mean color of `dst`.
-
-    Parameters
-    ----------
-    graph : RAG
-        The graph under consideration.
-    src, dst : int
-        The vertices in `graph` to be merged.
+# SECTION - Taken from https://scikit-image.org/docs/stable/auto_examples/segmentation/plot_boundary_merge.html
+def weight_boundary(graph, src, dst, n):
     """
-    graph.nodes[dst]['total color'] += graph.nodes[src]['total color']
-    graph.nodes[dst]['pixel count'] += graph.nodes[src]['pixel count']
-    graph.nodes[dst]['mean color'] = (
-        graph.nodes[dst]['total color'] / graph.nodes[dst]['pixel count']
-    )
+    Handle merging of nodes of a region boundary region adjacency graph.
 
-def weight_mean_color(graph, src, dst, n):
-    """Callback to handle merging nodes by recomputing mean color.
+    This function computes the `"weight"` and the count `"count"`
+    attributes of the edge between `n` and the node formed after
+    merging `src` and `dst`.
 
-    The method expects that the mean color of `dst` is already computed.
 
     Parameters
     ----------
@@ -38,13 +26,31 @@ def weight_mean_color(graph, src, dst, n):
     Returns
     -------
     data : dict
-        A dictionary with the `"weight"` attribute set as the absolute
-        difference of the mean color between node `dst` and `n`.
-    """
+        A dictionary with the "weight" and "count" attributes to be
+        assigned for the merged node.
 
-    diff = graph.nodes[dst]['mean color'] - graph.nodes[n]['mean color']
-    diff = np.linalg.norm(diff)
-    return {'weight': diff}
+    """
+    default = {'weight': 0.0, 'count': 0}
+
+    count_src = graph[src].get(n, default)['count']
+    count_dst = graph[dst].get(n, default)['count']
+
+    weight_src = graph[src].get(n, default)['weight']
+    weight_dst = graph[dst].get(n, default)['weight']
+
+    count = count_src + count_dst
+    return {
+        'count': count,
+        'weight': (count_src * weight_src + count_dst * weight_dst) / count,
+    }
+
+
+def merge_boundary(graph, src, dst):
+    """Call back called before merging 2 nodes.
+
+    In this case we don't need to do any computation here.
+    """
+    pass
 
 #!SECTION
 
@@ -55,10 +61,18 @@ class RAGModifier(Modifier):
 
     def apply(self, image=None, segments=None, parameters=None):
         logging.info("Applying RAG modifier...")
+        image = color.rgb2gray(image)
         edges = filters.sobel(image)
-        edges_rgb = color.gray2rgb(edges)
 
         g = graph.rag_boundary(segments, edges)
-        g = graph.rag_mean_color(image, segments, mode='similarity')
-        segments = graph.merge_hierarchical(segments, g, thresh=parameters['Threshold'], rag_copy=False, in_place_merge=True, merge_func=merge_mean_color, weight_func=weight_mean_color)
+        
+        segments = graph.merge_hierarchical(
+            segments,
+            g,
+            thresh=parameters['Threshold'],
+            rag_copy=False,
+            in_place_merge=True,
+            merge_func=merge_boundary,
+            weight_func=weight_boundary
+        )
         return segments

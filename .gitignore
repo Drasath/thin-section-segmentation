@@ -1,9 +1,2 @@
-logs/*
-datasets/*
-*.tif, *.tiff
+*/*.tif, */*.tiff, */*.save
 __pycache__
-Poster.pdf
-*.save
-dist/*
-build/*
-main.spec
