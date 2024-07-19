@@ -41,6 +41,7 @@ class MainWindow(QMainWindow):
         self.viewport.load_image(str(PROJECT_DIRECTORY / "datasets" / "example_medium_quality.tif"))
         
 
+    # TODO - Refactor this into separate classes. LH
     def _setup_ui(self):
 
         # SECTION - Menu Bar
