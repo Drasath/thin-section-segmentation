@@ -12,19 +12,21 @@ from modifiers import modifiers, rag_modifier
 from .viewport import Viewport
 from .parameter_tab import ParameterTab
 from model.segmentation import segment
-from .timeline import Timeline
 from .tutorial import Tutorial
 from model.AMG import AMG, Node as AMGNode
 
 class MainWindow(QMainWindow):
     """
+    Main window of the program
     """
 
     def __init__(self):
         super(MainWindow, self).__init__()
 
+        # Disabled keyboard shortcuts
         # QShortcut(QKeySequence('Ctrl+Z'), self, self.undo)
         # QShortcut(QKeySequence('Ctrl+Y'), self, self.redo)
+        
         self._setup_ui()
         QShortcut(QKeySequence("Ctrl+M"), self, self.merge_regions)
         QShortcut(QKeySequence("Ctrl+I"), self, self.viewport.invert_selection)
@@ -37,8 +39,7 @@ class MainWindow(QMainWindow):
         
         self.save_path = Path(PROJECT_DIRECTORY / "saves" / f"subject{SUBJECT_NR}.save")
         self.viewport.load_image(str(PROJECT_DIRECTORY / "datasets" / "example_medium_quality.tif"))
-        # self.viewport.load_image(str(PROJECT_DIRECTORY / "datasets" / "test.tif"))
-        # self.global_segmentation()
+        
 
     def _setup_ui(self):
 
@@ -76,9 +77,9 @@ class MainWindow(QMainWindow):
                 # {"Refine": },
                 {"Segment": self.global_segmentation}
             ],
-            "Help": [
-                {"About": self.about}
-            ]
+            # "Help": [
+            #     {"About": self.about}
+            # ]
         }
 
         menu_bar = self.menuBar()
@@ -94,19 +95,16 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         main_layout = QHBoxLayout()
         central_widget.setLayout(main_layout)
+        
         viewport_wrapper = QWidget()
         viewport_wrapper_layout = QVBoxLayout()
         viewport_wrapper.setLayout(viewport_wrapper_layout)
         main_layout.addWidget(viewport_wrapper)
-            # SECTION - Viewport
+        
+        # SECTION - Viewport
         self.viewport = Viewport()
         viewport_wrapper_layout.addWidget(self.viewport)
-            #!SECTION
-
-            # SECTION - Timeline
-        # self.timeline = Timeline()
-        # viewport_wrapper_layout.addWidget(self.timeline)
-            #!SECTION
+        #!SECTION
 
         sidebar = QWidget()
         sidebar_layout = QVBoxLayout()
@@ -120,12 +118,13 @@ class MainWindow(QMainWindow):
         self.outliner_wrapper.addTab(self.outliner, "Outliner")
 
         sidebar_layout.addWidget(Tutorial(self.save_as_file))
-
         sidebar_layout.addWidget(self.outliner_wrapper)
 
         self.inspector = QTabWidget()
         sidebar_layout.addWidget(self.inspector)
 
+        # SECTION - Global parameters
+        # TODO - Put in separate class/function
         self.global_parameters = QWidget()
         global_parameters_layout = QVBoxLayout()
         global_parameters_layout.setAlignment(Qt.AlignTop)
@@ -162,6 +161,8 @@ class MainWindow(QMainWindow):
         global_parameters_layout.addWidget(QPushButton("Segment", clicked=self.global_segmentation))
         self.inspector.addTab(self.global_parameters, "Global Parameters")
 
+        #!SECTION - Global parameters
+
         self.rag_parameters = QWidget()
         rag_parameters_layout = QVBoxLayout()
         rag_parameters_layout.setAlignment(Qt.AlignTop)
@@ -189,13 +190,6 @@ class MainWindow(QMainWindow):
 
         self.inspector.addTab(self.refinement, "Refinement")
 
-        # self.properties = QWidget()
-        # properties_layout = QVBoxLayout()
-        # self.properties.setLayout(properties_layout)
-        # properties_layout.addWidget(QLabel("Properties"))
-
-        # self.inspector.addTab(self.properties, "Properties")
-
         #!SECTION
 
         main_layout.setStretch(0, 3)
@@ -203,28 +197,18 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
     
     def open_file(self):
-        (file_path, _) = QFileDialog.getOpenFileName(filter="Images (*.tif *.tiff *.save)", directory=str(PROJECT_DIRECTORY / "datasets")) # TODO - Allow opening of save files. LH 
+        (file_path, _) = QFileDialog.getOpenFileName(filter="Images (*.tif *.tiff *.save)", directory=str(PROJECT_DIRECTORY / "datasets"))
+
         if file_path:
             if file_path.endswith(".tif") or file_path.endswith(".tiff"):
                 logging.info(f"File opened: {file_path}")
                 self.viewport.load_image(file_path)
-            elif file_path.endswith(SAVE_FILE_EXTENTION):
+            elif file_path.endswith(SAVE_FILE_EXTENTION): # TODO: Make save files open all stored data (image, segmentation, AMG)
                 logging.info(f"Segments opened: {file_path}")
                 segments = np.load(file_path)
                 self.viewport.set_segments(segments)
-            
         else:
             logging.info("No file selected.")
-
-    def load_file(self, cache=None):
-        path = self.save_path
-        if cache is not None:
-            path = str(path.parent / (str(cache) + "_" + path.name))
-
-        if path:
-            logging.info("Loading file...")
-            with open(path, 'rb') as file:
-                self.viewport.segments = np.load(file)
 
     def store_file(self, cache=None):
         path = self.save_path
@@ -239,6 +223,9 @@ class MainWindow(QMainWindow):
             file.write(self.amg.to_JSON())
 
     def save_file(self):
+        """
+        Saves the current progress, prompts the user if there is no previous save file.
+        """
         if self.save_path:
             logging.info("Saving file...")
             self.store_file()
@@ -247,6 +234,7 @@ class MainWindow(QMainWindow):
 
     def save_as_file(self):
         (file_path, _) = QFileDialog.getSaveFileName(filter="Save Files (*.save)", directory=str(PROJECT_DIRECTORY / "saves"))
+
         if file_path:
             logging.info(f"File saved as: {file_path}")
             if file_path.endswith(SAVE_FILE_EXTENTION):
@@ -256,21 +244,17 @@ class MainWindow(QMainWindow):
             logging.info("No file location selected.")
 
     def undo(self):
+        """
+        
+        """
         self.amg.undo()
-        self.load_file(self.amg.activeNode.index)
+        # self.load_file(self.amg.activeNode.index)
 
     def redo(self):
+        """
+        """
         self.amg.redo()
-        self.load_file(self.amg.activeNode.index)
-
-    def toggle_borders(self):
-        self.viewport.toggle_borders()
-
-    def toggle_rag(self):
-        self.viewport.toggle_rag()
-
-    def about(self):
-        pass
+        # self.load_file(self.amg.activeNode.index)
 
     def global_segmentation(self):
         parameters = {
@@ -281,15 +265,6 @@ class MainWindow(QMainWindow):
             "quality": float(self.global_parameters.quality.text() or 0.1)
         }
         self.amg.addNode(AMGNode({"modifier": "Global segmentation", "parameters": {**parameters}}))
-        # open segments cache to avoid recomputing
-        # cache = np.load("segments.npy")
-        # if cache is not None:
-        #     self.viewport.set_segments(cache)
-        #     props = regionprops(cache)
-        #     self.outliner.clear()
-        #     for prop in props:
-        #         self.outliner.addItem(f"Region {prop.label}")
-        #     return
 
         segments, lc = segment(self.viewport.image, **parameters)
         segments += 1
@@ -345,37 +320,6 @@ class MainWindow(QMainWindow):
         self.viewport.set_segments(segments)
         self.viewport.selected_segments = [self.viewport.selected_segments[0]]
 
-    def show_clustering(self):
-        pass
-        # data = []
-        # scaler = StandardScaler()
-        # normalized_data = scaler.fit_transform(data)
-
-        # weights = {'feature1': 1.0, 'feature2': 0.5, 'feature3': 2.0}  # Adjust these as needed
-
-        # # Apply weights to normalized data
-        # weighted_data = normalized_data.copy()
-        # for feature, weight in weights.items():
-        #     weighted_data[:, data.columns.get_loc(feature)] *= weight
-
-        # kmeans = KMeans(n_clusters=3)
-        # kmeans.fit(weighted_data)
-        # data['Cluster'] = kmeans.labels_
-
-        # plt.scatter(weighted_data[:, 0], weighted_data[:, 1], c=data['Cluster'])
-        # plt.xlabel('Feature 1')
-        # plt.ylabel('Feature 2')
-        # plt.title('K-means Clustering with Weighted Features')
-        # plt.show()
-
-    def jaccard_distance(self, a, b):
-        # Load ground truth image
-        # For each region in the ground truth image, calculate the Jaccard distance between the ground truth region and all segmented regions, record the minimum Jaccard distance
-        # Calculate the average Jaccard distance over all regions
-        # Show heatmap of Jaccard distances, where regions with a low accuracy are colored red and regions with a high accuracy are colored green
-
-        pass
-
     def reset_view(self):
         self.viewport.reset_transform()
 
@@ -397,6 +341,12 @@ class MainWindow(QMainWindow):
         result = rag_modifier.apply(self.viewport.image, self.viewport.segments, parameters)
         
         self.viewport.set_segments(result)
+
+    def toggle_borders(self):
+        self.viewport.toggle_borders()
+
+    def toggle_rag(self):
+        self.viewport.toggle_rag()
 
     def toggle_colors(self):
         self.viewport.toggle_colors()

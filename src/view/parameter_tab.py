@@ -3,6 +3,9 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 
 class ParameterInput(QLineEdit):
+    """
+    Input field for parameter tab.
+    """
     def __init__(self, input):
         super().__init__()
 
@@ -22,31 +25,29 @@ class ParameterInput(QLineEdit):
         elif input["type"] == "marker":
             self.setReadOnly(True)
             self.setPlaceholderText("Select a marker")
-            # Add position line edit
+        
 
 class ParameterTab(QWidget):
+    """
+    Widget containing input fields for the parameters of a modifier. 
+    """
     def __init__(self, parent, modifier):
         super().__init__()
         self.parent = parent
         self.layout = QVBoxLayout()
         self.layout.setAlignment(Qt.AlignTop)
         self.setLayout(self.layout)
-
         self.set_modifier(modifier)
 
     def set_modifier(self, modifier):
         self.clear()
         self.modifier = modifier
-        
         for input in modifier.inputs:
             self.layout.addWidget(ParameterInput(input))
 
     def clear(self):
         for i in reversed(range(self.layout.count())):
             self.layout.itemAt(i).widget().deleteLater()
-
-    def text(self):
-        return self.input.text()
 
     def get_parameters(self):
         parameters = {}
@@ -57,7 +58,6 @@ class ParameterTab(QWidget):
                 parameters[input.placeholderText()] = int(input.text())
             elif parameter['type'] == "float":
                 parameters[input.placeholderText()] = float(input.text())
-
             i += 1
         
         return parameters

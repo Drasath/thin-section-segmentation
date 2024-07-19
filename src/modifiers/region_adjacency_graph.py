@@ -4,7 +4,7 @@ import logging
 from skimage import filters, graph, color
 import numpy as np
 
-# SECTION - Taken from https://scikit-image.org/docs/stable/auto_examples/segmentation/plot_rag_merge.html
+# SECTION - Taken from https://scikit-image.org/docs/stable/auto_examples/segmentation/plot_boundary_merge.html
 def weight_boundary(graph, src, dst, n):
     """
     Handle merging of nodes of a region boundary region adjacency graph.

@@ -5,9 +5,8 @@ import numpy as np
 from skimage import io, color, segmentation, graph
 import logging
 
-import matplotlib.pyplot as plt
-
 from constants import *
+
 class Viewport(QWidget):
     """
     """
@@ -15,29 +14,29 @@ class Viewport(QWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        size = 800
         # FIXME - Fix resizing of the viewport. LH
-        self.setMinimumSize(size, size)
-        # self.setFixedSize(size, size)
-        self.q_image = QImage(500, 500, QImage.Format_RGB888)
+        size = 800
+        self.setFixedSize(size, size)
+        self.q_image = QImage(size, size, QImage.Format_RGB888)
         self.q_image.fill(Qt.gray)
 
         self.reset()
 
     def reset(self):
-        self.transform = QTransform()
         self.image: np.ndarray = None
         self.segments: np.ndarray = None
         self.rag: graph.LineCollection = None
+        self.transform = QTransform()
+        self.resize_scale: list[float] = [1, 1]
+        self.zoom_level = 1
+        self.selected_segments = []
+        self.mouse_moved: bool = False
         self.show_borders: bool = True
         self.show_rag: bool = False
         self.show_colors: bool = False
         self.show_overlay: bool = False
-        self.resize_scale: list[float] = [1, 1]
-        self.mouse_moved = False
-        self.zoom_level = 1
-        self.selected_segments = []
         self.colormap: np.ndarray = None
+        self.last_pos = None
 
     def mousePressEvent(self, event):
         if event.buttons() == Qt.LeftButton:
@@ -46,23 +45,22 @@ class Viewport(QWidget):
 
     def mouseMoveEvent(self, event):
         if event.buttons() == Qt.LeftButton:
-            qApp.changeOverrideCursor(Qt.ClosedHandCursor)
+            # qApp.changeOverrideCursor(Qt.ClosedHandCursor)
             self.mouse_moved = True
             dx, dy = (event.x() - self.last_pos.x()) / self.zoom_level, (event.y() - self.last_pos.y()) / self.zoom_level
             self.transform.translate(dx, dy)
-            self.update()
             self.last_pos = event.pos()
+            self.update()
 
     def mouseReleaseEvent(self, event):
+        if self.segments is None:
+            return
+        
         if event.button() == Qt.LeftButton:
             if self.mouse_moved:
                 self.mouse_moved = False
                 qApp.restoreOverrideCursor()
-                # Move image or marker depending on mode
-            else:
-                # Select region or add marker depending on mode
-                if self.segments is None:
-                    return
+            else:    
                 mouse_pos = self.transform.inverted()[0].map(event.pos())
                 mouse_pos = QPoint(int(mouse_pos.x() / self.resize_scale[0]), int(mouse_pos.y() / self.resize_scale[1]))
                 logging.info(f"Mouse position: {event.pos()} {mouse_pos} {self.width()} {self.height()} {self.resize_scale[0]} {self.resize_scale[1]}")
